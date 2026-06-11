@@ -1,0 +1,164 @@
+{
+  "app_name": "LinguaConnect (HelloTalk Clone)",
+  "personality": "4 Tactile / Playful",
+  "personality_one_liner": "A friendly, welcoming space to learn languages, focusing on social connection and easy conversation over rigid classrooms.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#111827",
+    "surfaceSecondary": "#F4F6F8",
+    "onSurfaceSecondary": "#4B5563",
+    "surfaceTertiary": "#E5E7EB",
+    "onSurfaceTertiary": "#374151",
+    "surfaceInverse": "#111827",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#0EA5E9",
+    "brandPrimary": "#0EA5E9",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#BAE6FD",
+    "onBrandSecondary": "#0369A1",
+    "brandTertiary": "#E0F2FE",
+    "onBrandTertiary": "#0C4A6E",
+    "success": "#10B981",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E7EB",
+    "borderStrong": "#D1D5DB",
+    "divider": "#F3F4F6"
+  },
+  "typography": {
+    "displayFontFamily": "Figtree",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use playful, slightly chunky spacing. Generous padding around cards to make them feel touchable.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use on bottom tab bar, floating action buttons (FAB), and sticky section headers."
+    ],
+    "dont's": [
+      "Do not use on generic list rows, form fields, or primary chat bubbles."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Onboarding",
+      "purpose": "Select native language, target language, and proficiency level.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "N/A",
+        "error": "Show alert for failed signup"
+      },
+      "layout": "Hero image at top using `world globe`. Floating white card for form inputs with subtle shadow. Large pill-shaped primary CTA anchored to bottom. Sticky CTA inside KeyboardAvoidingView."
+    },
+    {
+      "name": "Partner Discovery (Connect)",
+      "purpose": "List language exchange partners filtered by language pair.",
+      "states": {
+        "loading": "Skeleton list of users",
+        "empty": "Illustration of empty state 'No partners found matching criteria'",
+        "error": "Retry button with friendly error message"
+      },
+      "layout": "Sticky top filter row (glass). List of user cards featuring avatars, language tags (Native/Learning with flags), and a quick 'Message' button. Use generous padding inside user cards."
+    },
+    {
+      "name": "Chat Inbox",
+      "purpose": "List of active conversations.",
+      "states": {
+        "loading": "Skeleton list",
+        "empty": "Illustration of empty inbox with CTA 'Find Partners'",
+        "error": "Retry button"
+      },
+      "layout": "Standard list view with large hit areas. Each row has an unread indicator, avatar, and last message snippet. Bottom tab bar is glass."
+    },
+    {
+      "name": "1-on-1 Chat",
+      "purpose": "Real-time messaging with translation and grammar correction tools.",
+      "states": {
+        "loading": "Spinner",
+        "empty": "Illustration 'Say Hello!'",
+        "error": "Retry connection button"
+      },
+      "layout": "Chat bubbles with rounded corners (pill-like for short texts, rounded rectangles for long). Tools (Translate/Correct) accessible via a long-press menu or small inline icon next to bubbles. Input field at bottom inside KeyboardAvoidingView."
+    },
+    {
+      "name": "Moments",
+      "purpose": "Social feed for text posts, likes, and comments.",
+      "states": {
+        "loading": "Skeleton feed",
+        "empty": "Illustration 'Share your first moment'",
+        "error": "Retry button"
+      },
+      "layout": "Feed of posts. Each post is a card with user avatar, text content, and action bar (Like, Comment, Correct). FAB in bottom right to create a new post (using brandPrimary + glass)."
+    }
+  ],
+  "images": {
+    "onboarding_hero": {
+      "url": "https://images.unsplash.com/photo-1669950200209-69d8292c032f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHx3b3JsZCUyMGdsb2JlJTIwM2QlMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzgxMTU5MTAyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "World globe 3D illustration"
+    },
+    "chat_inbox_empty": {
+      "url": "https://images.unsplash.com/photo-1683117927786-f146451082fb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMGluYm94JTIwaWxsdXN0cmF0aW9ufGVufDB8fHx8MTc4MTE1OTA3Mnww&ixlib=rb-4.1.0&q=85",
+      "alt": "Empty inbox illustration"
+    },
+    "chat_hello_empty": {
+      "url": "https://images.unsplash.com/photo-1662974770404-468fd9660389?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxmcmllbmRseSUyMGNoYXQlMjAzZCUyMGlsbHVzdHJhdGlvbnxlbnwwfHx8fDE3ODExNTkwODN8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Friendly chat 3D illustration"
+    },
+    "generic_empty": {
+      "url": "https://images.unsplash.com/photo-1621944190310-e3cca1564bd7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMGRvY3VtZW50JTIwb3IlMjBsaXN0JTIwM2QlMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzgxMTU5MDgyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Empty document 3D box"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the 'Tactile / Playful' personality heavily. Ensure buttons are chunky and pill-shaped.",
+    "The user explicitly requested 'HelloTalk-like (light, friendly blue)'. Hence we are utilizing the `brandPrimary` as a vibrant sky blue `#0EA5E9`.",
+    "For Dark Mode, invert surface colors naturally: surface=#0F172A, surfaceSecondary=#1E293B, surfaceTertiary=#334155, and keep brand colors vibrant but slightly adjusted for contrast if necessary.",
+    "Ensure the partner discovery screen allows clear filtering between native and learning languages.",
+    "Chat bubbles must clearly distinct sender vs receiver. Include small icons for Translate/Correct inline on bubbles or accessible via a quick BottomSheet on long press.",
+    "In the Moments feed, wrap posts in soft cards with `sm` border radius and `shadow_tier 2` equivalent to create a touchable, floating aesthetic.",
+    "For user avatars, if no real image is provided by API, fallback to a circular view with `brandTertiary` background and `onBrandTertiary` initials. For mock data, try fetching some random profile images instead of initials.",
+    "Add haptic feedback to tab switching, liking moments, and sending messages."
+  ]
+}
