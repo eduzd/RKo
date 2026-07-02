@@ -22,6 +22,8 @@ media_col = db["media_files"]
 profile_visits_col = db["profile_visits"]
 notifications_col = db["notifications"]
 follows_col = db["follows"]
+config_col = db["app_config"]
+market_config_col = db["market_config"]
 
 
 async def ensure_indexes():

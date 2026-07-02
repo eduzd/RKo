@@ -152,10 +152,13 @@ def user_public(doc: dict) -> dict:
         "gender": doc.get("gender"),
         "is_vip": _vip_active(doc),
         "vip_tier": doc.get("vip_tier"),
+        "is_admin": bool(doc.get("is_admin")),
         "active_badge": _active_item(doc.get("active_badge")),
         "active_frame": _active_item(doc.get("active_frame")),
         "coins": doc.get("coins", 0),
         "privacy": doc.get("privacy") or {},
+        "hidden_moment_users": doc.get("hidden_moment_users") or [],
+        "blocked_users": doc.get("blocked_users") or [],
         "streak_count": doc.get("streak_count", 0),
         "created_at": doc.get("created_at"),
     }

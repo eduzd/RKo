@@ -86,11 +86,17 @@ def comment_public(doc: dict, author: dict | None) -> dict:
 @router.get("")
 async def list_moments(current_user: CurrentUser):
     docs = await moments_col.find({}).sort("created_at", -1).to_list(100)
+    hidden = set(current_user.get("hidden_moment_users") or []) | set(
+        current_user.get("blocked_users") or []
+    )
+    docs = [d for d in docs if d["user_id"] not in hidden]
     return [await moment_public(d, current_user["_id"]) for d in docs]
 
 
 @router.post("", status_code=201)
 async def create_moment(body: MomentCreate, current_user: CurrentUser):
+    if current_user.get("restricted"):
+        raise HTTPException(status_code=403, detail="Your account is restricted from posting.")
     if not body.text.strip() and not body.image_base64:
         raise HTTPException(status_code=400, detail="Add some text or a photo")
     image_id = None

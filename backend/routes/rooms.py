@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
+from config_utils import get_app_config
 from db import room_messages_col, rooms_col, users_col
 from models import RoomCreate, RoomMessageCreate, RoomRoleUpdate, RoomUserAction, _vip_active, user_card
 from ws_manager import manager
@@ -73,15 +74,16 @@ async def list_rooms(current_user: CurrentUser):
 
 @router.post("", status_code=201)
 async def create_room(body: RoomCreate, current_user: CurrentUser):
-    # Free users can host 1 room per day; VIP hosts unlimited rooms.
+    # Free users: configurable rooms/day; VIP hosts unlimited rooms.
     if not _vip_active(current_user):
+        limit = (await get_app_config())["free_rooms_per_day"]
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         usage = current_user.get("host_usage") or {}
         count = usage.get("count", 0) if usage.get("date") == today else 0
-        if count >= 1:
+        if count >= limit:
             raise HTTPException(
                 status_code=403,
-                detail="Free users can host 1 room per day. Upgrade to VIP for unlimited rooms.",
+                detail=f"Free users can host {limit} room(s) per day. Upgrade to VIP for unlimited rooms.",
             )
         await users_col.update_one(
             {"_id": current_user["_id"]},

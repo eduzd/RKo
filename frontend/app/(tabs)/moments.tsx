@@ -25,6 +25,7 @@ import { VipBadge } from "@/src/components/Badges";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { LikersRow } from "@/src/components/LikersRow";
 import { countryToCode } from "@/src/constants/countries";
+import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
 import { api, assetUrl, Moment } from "@/src/utils/api";
@@ -32,6 +33,7 @@ import { timeAgo } from "@/src/utils/time";
 
 export default function Moments() {
   const router = useRouter();
+  const { user } = useAuth();
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [moments, setMoments] = useState<Moment[]>([]);
@@ -41,6 +43,35 @@ export default function Moments() {
   const [posting, setPosting] = useState(false);
   const [photo, setPhoto] = useState<{ base64: string; uri: string; mime: string } | null>(null);
   const [unread, setUnread] = useState(0);
+  const [postTranslations, setPostTranslations] = useState<Record<string, string>>({});
+  const [translatingPost, setTranslatingPost] = useState<string | null>(null);
+
+  const translatePost = async (moment: Moment) => {
+    if (postTranslations[moment.id]) {
+      setPostTranslations((prev) => {
+        const next = { ...prev };
+        delete next[moment.id];
+        return next;
+      });
+      return;
+    }
+    if (!moment.text || translatingPost) return;
+    setTranslatingPost(moment.id);
+    try {
+      const result = await api.post<{ translated: string }>("/ai/translate", {
+        text: moment.text,
+        target_language: user?.native_language || "en",
+      });
+      setPostTranslations((prev) => ({ ...prev, [moment.id]: result.translated }));
+    } catch (e) {
+      Alert.alert(
+        "Translate",
+        e instanceof Error ? e.message : "Translation failed. Try again.",
+      );
+    } finally {
+      setTranslatingPost(null);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -235,6 +266,14 @@ export default function Moments() {
                 </View>
               </View>
               {item.text ? <Text style={styles.cardText}>{item.text}</Text> : null}
+              {postTranslations[item.id] ? (
+                <View style={styles.translationBlock} testID={`moment-translation-${item.id}`}>
+                  <Ionicons name="language" size={13} color={colors.brand} />
+                  <Text style={styles.translationText}>
+                    {postTranslations[item.id]}
+                  </Text>
+                </View>
+              ) : null}
               {item.image_url ? (
                 <Image
                   testID={`moment-image-${item.id}`}
@@ -269,6 +308,27 @@ export default function Moments() {
                   />
                   <Text style={styles.actionText}>{item.comment_count}</Text>
                 </Pressable>
+                {item.text ? (
+                  <Pressable
+                    testID={`moment-translate-btn-${item.id}`}
+                    style={styles.actionBtn}
+                    onPress={() => translatePost(item)}
+                  >
+                    {translatingPost === item.id ? (
+                      <ActivityIndicator size="small" color={colors.brand} />
+                    ) : (
+                      <Ionicons
+                        name="language"
+                        size={18}
+                        color={
+                          postTranslations[item.id]
+                            ? colors.brand
+                            : colors.onSurfaceSecondary
+                        }
+                      />
+                    )}
+                  </Pressable>
+                ) : null}
               </View>
               <LikersRow
                 momentId={item.id}
@@ -459,6 +519,21 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 15,
     lineHeight: 22,
     color: colors.onSurface,
+  },
+  translationBlock: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.brandTertiary,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+  },
+  translationText: {
+    flex: 1,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.onBrandTertiary,
   },
   cardImage: {
     width: "100%",

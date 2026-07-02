@@ -41,6 +41,7 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
+  delete: <T>(path: string) => request<T>("DELETE", path),
 };
 
 export interface User {
@@ -59,11 +60,14 @@ export interface User {
   interests?: string[];
   gender?: "male" | "female" | null;
   is_vip?: boolean;
+  is_admin?: boolean;
   vip_tier?: "weekly" | "monthly" | "lifetime" | null;
   active_badge?: { id: string; emoji: string; expires_at?: string | null } | null;
   active_frame?: { id: string; color: string; colors?: string[] | null; animated?: boolean; expires_at?: string | null } | null;
   coins?: number;
   privacy?: Record<string, boolean>;
+  hidden_moment_users?: string[];
+  blocked_users?: string[];
   is_online?: boolean;
   followers_count?: number;
   following_count?: number;
@@ -95,6 +99,7 @@ export interface Conversation {
   partner: User | null;
   last_message: { text: string; sender_id: string; created_at: string } | null;
   unread: number;
+  muted?: boolean;
   updated_at: string;
 }
 

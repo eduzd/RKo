@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 7 tested end-to-end: 20 pytest cases (18 passed, 2 failed). Backend admin dashboard, translation limits, room caps, visitor VIP lock, animated frames, ban/restrict/coins/VIP, block user, hide moments, admin market disable all pass. Two backend endpoints are MISSING (spec requires them): POST /api/chats/{id}/mute and DELETE /api/chats/{id}/messages. Frontend: fixed one CRITICAL crash bug — Avatar.tsx destructured `frameColor` instead of `frame` causing 'frame is not defined' ReferenceError that broke Connect/Moments/Rooms/etc. After fix, all tabs render, moment-translate-btn shows 18 buttons, connect-search-bar visible with testID, animated rainbow ring renders on avatar. Admin console at /admin-x7k2p9 loads, logs in with admin@lingua.app/Admin1234!, all 5 tabs (Overview/Users/Market/Moments/Settings) render, stats populated. Backend market.py had a NameError (missing market_config_col import) — fixed. Also fixed missing `/auth/register` path in the initial test scaffold.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/chats/{conversation_id}/mute", "issue": "Endpoint is MISSING — spec requires it (toggle mute so partner's messages don't increment unread). Returns 404. chats.py has muted-handling for voice/image but no mute-toggle route.", "priority": "HIGH"},
+      {"endpoint": "DELETE /api/chats/{conversation_id}/messages", "issue": "Endpoint is MISSING — spec requires it (clear chat history). Returns 405 Method Not Allowed.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7_features.py",
+    "/app/test_reports/pytest/iteration7.xml"
+  ],
+  "action_items": [
+    "Add POST /api/chats/{conversation_id}/mute route in /app/backend/routes/chats.py — toggle conversations_col.muted[user_id] and return {muted: bool}. The read handler already returns 'muted' in conversation_public and voice/image sends already respect the muted flag; text-send message endpoint at line 181 should also skip $inc unread when muted.",
+    "Add DELETE /api/chats/{conversation_id}/messages route in /app/backend/routes/chats.py — delete all messages for the conversation and reset last_message + unread.",
+    "Ensure the text-message send at chats.py:181 also respects muted (currently always increments unread — inconsistent with voice/image which check `if not conv.get('muted', {}).get(partner_id)`).",
+    "Consider updating test_credentials.md — env var used by frontend is EXPO_PUBLIC_BACKEND_URL, not EXPO_BACKEND_URL as referenced in docs."
+  ],
+  "critical_code_review_comments": [
+    "BUG FIXED by tester: /app/backend/routes/market.py used market_config_col without importing it — GET /api/market returned 500 (NameError). Added market_config_col to the db import.",
+    "BUG FIXED by tester: /app/frontend/src/components/Avatar.tsx destructured a non-existent `frameColor` prop but the body used `frame` (from AvatarProps.frame). This caused ReferenceError 'frame is not defined' and crashed every screen that renders Avatar (Connect, Moments, Rooms, Chats, etc.). Changed destructure to `frame`.",
+    "chats.py send_message (text) always increments unread even when muted — inconsistent with voice/image handlers.",
+    "Chat 3-dot-menu spec references mute + clear history but backend routes are absent — frontend chat/[id].tsx menu options for mute/clear will fail if wired to those endpoints."
+  ],
+  "updated_files": [
+    "/app/backend/routes/market.py (added market_config_col import)",
+    "/app/frontend/src/components/Avatar.tsx (fixed frameColor -> frame destructure)",
+    "/app/backend/tests/test_iteration7_features.py (new)"
+  ],
+  "success_rate": {"backend": "90% (18/20 pytest)", "frontend": "core screens render and testIDs verified after crash-fix"},
+  "seed_data_creation": "Test users prefixed TEST_ / test_i7_*/tr_free_*/room_free_*/blk_*/mute_*/clr_*/free_visit_* created via /auth/register. Ban/restrict cases self-clean by re-toggling; created moments were deleted via /admin/moments/{id}. A few disposable users may linger — not blocking. Admin config was NOT modified.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL env var is EXPO_PUBLIC_BACKEND_URL (Expo convention). Backend register route is /api/auth/register (not /signup). Admin console lives at /admin-x7k2p9 (web). demo@demo.com is VIP weekly — use fresh signup for free-tier limit tests. After iteration 7 tester fixes, ONLY missing pieces are two chat endpoints (mute + clear messages). Re-run backend/tests/test_iteration7_features.py after main agent adds them.",
+  "rca_of_issue": "1) market.py 500: `from db import users_col` alone but code used market_config_col in two places — pure import miss. Fix: `from db import market_config_col, users_col`. 2) Avatar crash: prop interface renamed to `frame: AvatarFrame` but destructure line still referenced the older `frameColor` name while the body used `frame.animated`, `frame.colors`, `frame.color` — throwing at first render on any tab. Fix: rename destructure to `frame`. 3) Missing chat routes: /mute and DELETE /messages need to be implemented; spec item #9 depends on them."
+}

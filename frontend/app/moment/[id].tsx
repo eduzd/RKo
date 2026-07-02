@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +21,7 @@ import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
 import { LikersRow } from "@/src/components/LikersRow";
 import { countryToCode } from "@/src/constants/countries";
+import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
 import { api, assetUrl, Moment, MomentComment } from "@/src/utils/api";
@@ -36,8 +38,34 @@ export default function MomentDetail() {
     null,
   );
   const [showAuthorBar, setShowAuthorBar] = useState(false);
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const { user } = useAuth();
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
+
+  const translatePost = async () => {
+    if (translation) {
+      setTranslation(null);
+      return;
+    }
+    if (!moment?.text || translating) return;
+    setTranslating(true);
+    try {
+      const result = await api.post<{ translated: string }>("/ai/translate", {
+        text: moment.text,
+        target_language: user?.native_language || "en",
+      });
+      setTranslation(result.translated);
+    } catch (e) {
+      Alert.alert(
+        "Translate",
+        e instanceof Error ? e.message : "Translation failed. Try again.",
+      );
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -178,6 +206,12 @@ export default function MomentDetail() {
                   </View>
                 </View>
                 <Text style={styles.momentText}>{moment.text}</Text>
+                {translation ? (
+                  <View style={styles.translationBlock} testID="moment-detail-translation">
+                    <Ionicons name="language" size={13} color={colors.brand} />
+                    <Text style={styles.translationText}>{translation}</Text>
+                  </View>
+                ) : null}
                 {moment.image_url ? (
                   <Image
                     testID="moment-detail-image"
@@ -208,6 +242,23 @@ export default function MomentDetail() {
                     />
                     <Text style={styles.actionText}>{moment.comment_count}</Text>
                   </View>
+                  {moment.text ? (
+                    <Pressable
+                      testID="moment-detail-translate-btn"
+                      style={styles.actionBtn}
+                      onPress={translatePost}
+                    >
+                      {translating ? (
+                        <ActivityIndicator size="small" color={colors.brand} />
+                      ) : (
+                        <Ionicons
+                          name="language"
+                          size={19}
+                          color={translation ? colors.brand : colors.onSurfaceSecondary}
+                        />
+                      )}
+                    </Pressable>
+                  ) : null}
                 </View>
                 <LikersRow
                   momentId={moment.id}
@@ -380,6 +431,21 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 16,
     lineHeight: 24,
     color: colors.onSurface,
+  },
+  translationBlock: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.brandTertiary,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+  },
+  translationText: {
+    flex: 1,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.onBrandTertiary,
   },
   momentImage: {
     width: "100%",

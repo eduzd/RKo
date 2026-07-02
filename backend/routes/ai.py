@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
+from config_utils import get_app_config
 from db import users_col
 from models import CorrectRequest, TranslateRequest, _vip_active
 
@@ -15,8 +16,6 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 logger = logging.getLogger(__name__)
 
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
-
-FREE_DAILY_TRANSLATIONS = 3
 
 # Safety net when a language *name* is sent instead of an ISO code.
 NAME_TO_CODE = {
@@ -74,17 +73,18 @@ async def translate(body: TranslateRequest, current_user: CurrentUser):
     target = (body.target_language or "en").strip()
     if len(target) > 3:
         target = NAME_TO_CODE.get(target.lower(), "en")
-    # Free users: 3 translations/day. VIP: unlimited.
+    # Free users: configurable translations/day. VIP: unlimited.
     remaining = None
     if not _vip_active(current_user):
+        limit = (await get_app_config())["free_translations_per_day"]
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         usage = current_user.get("translate_usage") or {}
         count = usage.get("count", 0) if usage.get("date") == today else 0
-        if count >= FREE_DAILY_TRANSLATIONS:
+        if count >= limit:
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    f"Daily translation limit reached ({FREE_DAILY_TRANSLATIONS}/day for free users). "
+                    f"Daily translation limit reached ({limit}/day for free users). "
                     "Upgrade to VIP for unlimited translations."
                 ),
             )
@@ -92,7 +92,7 @@ async def translate(body: TranslateRequest, current_user: CurrentUser):
             {"_id": current_user["_id"]},
             {"$set": {"translate_usage": {"date": today, "count": count + 1}}},
         )
-        remaining = FREE_DAILY_TRANSLATIONS - count - 1
+        remaining = limit - count - 1
     try:
         translated = await _google_translate(body.text, target)
     except Exception:

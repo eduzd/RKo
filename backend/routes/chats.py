@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
+from config_utils import get_app_config
 from db import audio_col, conversations_col, follows_col, media_col, messages_col, users_col
 from models import (
     ConversationCreate,
@@ -47,8 +48,21 @@ async def conversation_public(doc: dict, viewer_id: str) -> dict:
         "partner": partner_card,
         "last_message": doc.get("last_message"),
         "unread": doc.get("unread", {}).get(viewer_id, 0),
+        "muted": bool(doc.get("muted", {}).get(viewer_id)),
         "updated_at": doc.get("updated_at"),
     }
+
+
+async def ensure_not_blocked(current_user: dict, partner_id: str):
+    """Blocked users can't message each other."""
+    if partner_id in (current_user.get("blocked_users") or []):
+        raise HTTPException(
+            status_code=403,
+            detail="You blocked this user. Unblock them to send messages.",
+        )
+    partner = await users_col.find_one({"_id": partner_id})
+    if partner and current_user["_id"] in (partner.get("blocked_users") or []):
+        raise HTTPException(status_code=403, detail="You can't message this user.")
 
 
 async def get_owned_conversation(conversation_id: str, user_id: str) -> dict:
@@ -65,14 +79,16 @@ async def create_or_get_conversation(body: ConversationCreate, current_user: Cur
     partner = await users_col.find_one({"_id": body.partner_id})
     if not partner:
         raise HTTPException(status_code=404, detail="User not found")
+    await ensure_not_blocked(current_user, body.partner_id)
     existing = await conversations_col.find_one(
         {"participant_ids": {"$all": [current_user["_id"], body.partner_id]}}
     )
     if existing:
         return await conversation_public(existing, current_user["_id"])
-    # Daily new-partner caps: free users 10/day, VIP 25/day. Mutual follows are exempt.
+    # Daily new-partner caps (admin-configurable). Mutual follows are exempt.
+    cfg = await get_app_config()
     is_vip = _vip_active(current_user)
-    daily_cap = 25 if is_vip else 10
+    daily_cap = cfg["vip_new_chats_per_day"] if is_vip else cfg["free_new_chats_per_day"]
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     usage = current_user.get("new_chat_usage") or {}
     used_today = usage.get("count", 0) if usage.get("date") == today else 0
@@ -140,8 +156,11 @@ async def list_messages(conversation_id: str, current_user: CurrentUser):
 
 @router.post("/{conversation_id}/messages", status_code=201)
 async def send_message(conversation_id: str, body: MessageCreate, current_user: CurrentUser):
+    if current_user.get("restricted"):
+        raise HTTPException(status_code=403, detail="Your account is restricted from sending messages.")
     conv = await get_owned_conversation(conversation_id, current_user["_id"])
     partner_id = next(p for p in conv["participant_ids"] if p != current_user["_id"])
+    await ensure_not_blocked(current_user, partner_id)
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "_id": str(uuid.uuid4()),
@@ -201,16 +220,15 @@ async def send_voice_message(
     }
     await messages_col.insert_one(doc)
     msg = message_public(doc)
-    await conversations_col.update_one(
-        {"_id": conversation_id},
-        {
-            "$set": {
-                "last_message": {"text": "🎤 Voice message", "sender_id": current_user["_id"], "created_at": now},
-                "updated_at": now,
-            },
-            "$inc": {f"unread.{partner_id}": 1},
+    voice_update: dict = {
+        "$set": {
+            "last_message": {"text": "🎤 Voice message", "sender_id": current_user["_id"], "created_at": now},
+            "updated_at": now,
         },
-    )
+    }
+    if not conv.get("muted", {}).get(partner_id):
+        voice_update["$inc"] = {f"unread.{partner_id}": 1}
+    await conversations_col.update_one({"_id": conversation_id}, voice_update)
     await manager.send_to_user(
         partner_id,
         {
@@ -249,16 +267,15 @@ async def send_image_message(
     }
     await messages_col.insert_one(doc)
     msg = message_public(doc)
-    await conversations_col.update_one(
-        {"_id": conversation_id},
-        {
-            "$set": {
-                "last_message": {"text": "📷 Photo", "sender_id": current_user["_id"], "created_at": now},
-                "updated_at": now,
-            },
-            "$inc": {f"unread.{partner_id}": 1},
+    image_update: dict = {
+        "$set": {
+            "last_message": {"text": "📷 Photo", "sender_id": current_user["_id"], "created_at": now},
+            "updated_at": now,
         },
-    )
+    }
+    if not conv.get("muted", {}).get(partner_id):
+        image_update["$inc"] = {f"unread.{partner_id}": 1}
+    await conversations_col.update_one({"_id": conversation_id}, image_update)
     await manager.send_to_user(
         partner_id,
         {

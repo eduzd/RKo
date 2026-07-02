@@ -242,6 +242,40 @@ async def list_partners(
     return cards
 
 
+@router.post("/{user_id}/hide-moments")
+async def toggle_hide_moments(user_id: str, current_user: CurrentUser):
+    """Toggle hiding a user's moments from my feed."""
+    hidden = set(current_user.get("hidden_moment_users") or [])
+    if user_id in hidden:
+        hidden.discard(user_id)
+        now_hidden = False
+    else:
+        hidden.add(user_id)
+        now_hidden = True
+    await users_col.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"hidden_moment_users": list(hidden)}},
+    )
+    return {"hidden": now_hidden}
+
+
+@router.post("/{user_id}/block")
+async def toggle_block(user_id: str, current_user: CurrentUser):
+    """Toggle blocking a user (blocked users can't message me)."""
+    blocked = set(current_user.get("blocked_users") or [])
+    if user_id in blocked:
+        blocked.discard(user_id)
+        now_blocked = False
+    else:
+        blocked.add(user_id)
+        now_blocked = True
+    await users_col.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"blocked_users": list(blocked)}},
+    )
+    return {"blocked": now_blocked}
+
+
 @router.get("/{user_id}")
 async def get_user(user_id: str, current_user: CurrentUser):
     doc = await users_col.find_one({"_id": user_id})

@@ -22,6 +22,7 @@ from routes.media import router as media_router  # noqa: E402
 from routes.market import router as market_router  # noqa: E402
 from routes.moments import router as moments_router  # noqa: E402
 from routes.notifications import router as notifications_router  # noqa: E402
+from routes.admin import router as admin_router  # noqa: E402
 from routes.rooms import router as rooms_router  # noqa: E402
 from routes.users import router as users_router  # noqa: E402
 from ws_manager import manager  # noqa: E402
@@ -36,8 +37,39 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_indexes()
+    await seed_admin()
     yield
     client.close()
+
+
+async def seed_admin():
+    """Idempotent admin account seeding (upsert keyed on email)."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from auth_utils import hash_password
+    from db import users_col
+
+    email = "admin@lingua.app"
+    existing = await users_col.find_one({"email": email})
+    if existing:
+        if not existing.get("is_admin"):
+            await users_col.update_one({"_id": existing["_id"]}, {"$set": {"is_admin": True}})
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    await users_col.insert_one(
+        {
+            "_id": str(uuid.uuid4()),
+            "email": email,
+            "password_hash": hash_password("Admin1234!"),
+            "name": "Admin",
+            "is_admin": True,
+            "banned": False,
+            "coins": 0,
+            "created_at": now,
+        }
+    )
+    logger.info("Seeded admin account %s", email)
 
 
 app = FastAPI(title="LinguaConnect API", lifespan=lifespan)
@@ -105,6 +137,7 @@ for router in (
     media_router,
     notifications_router,
     market_router,
+    admin_router,
 ):
     app.include_router(router, prefix="/api")
 

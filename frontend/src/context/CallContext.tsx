@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, {
   createContext,
   useCallback,
@@ -16,12 +17,62 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 
 import { Avatar } from "@/src/components/Avatar";
+import { VipBadge } from "@/src/components/Badges";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { User, wsUrl } from "@/src/utils/api";
+
+/** Expanding ripple ring behind the avatar while ringing. */
+const PulseRing: React.FC<{ size: number; delay: number }> = ({
+  size,
+  delay,
+}) => {
+  const t = useSharedValue(0);
+
+  useEffect(() => {
+    t.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(1, { duration: 2000, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      ),
+    );
+  }, [t, delay]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + t.value * 0.6 }],
+    opacity: 0.55 * (1 - t.value),
+  }));
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: "absolute",
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: 2,
+          borderColor: "#7DD3FC",
+        },
+        style,
+      ]}
+    />
+  );
+};
 
 type SignalHandler = (event: any) => void;
 
@@ -282,62 +333,127 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
       <Modal visible={!!call} transparent animationType="fade">
         {call && (
-          <View style={styles.backdrop} testID="call-overlay">
-            <View style={styles.card}>
-              <Avatar name={call.peer.name} url={call.peer.avatar_url} size={88} />
-              <Text style={styles.name}>{call.peer.name}</Text>
-              <Text style={styles.status}>
-                {call.status === "incoming" && "Incoming audio call..."}
-                {call.status === "outgoing" && "Calling..."}
-                {call.status === "active" &&
-                  `${mins}:${secs.toString().padStart(2, "0")}`}
+          <LinearGradient
+            colors={["#0B1B2E", "#14335A", "#0B1B2E"]}
+            style={styles.backdrop}
+            testID="call-overlay"
+          >
+            <View style={styles.topArea}>
+              <Text style={styles.callKind}>
+                {call.status === "incoming"
+                  ? "Incoming audio call"
+                  : call.status === "outgoing"
+                    ? "Audio call"
+                    : "Audio call"}
               </Text>
-              <View style={styles.actions}>
-                {call.status === "incoming" && (
+              {call.status === "active" && (
+                <View style={styles.timerPill} testID="call-timer">
+                  <View style={styles.liveDot} />
+                  <Text style={styles.timerText}>
+                    {mins}:{secs.toString().padStart(2, "0")}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.centerArea}>
+              <View style={styles.avatarWrap}>
+                {call.status !== "active" && (
                   <>
+                    <PulseRing size={150} delay={0} />
+                    <PulseRing size={150} delay={700} />
+                    <PulseRing size={150} delay={1400} />
+                  </>
+                )}
+                <Avatar
+                  name={call.peer.name}
+                  url={call.peer.avatar_url}
+                  size={124}
+                  frame={call.peer.active_frame}
+                  isSpeaking={call.status === "active"}
+                />
+              </View>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>{call.peer.name}</Text>
+                {call.peer.is_vip ? (
+                  <VipBadge tier={call.peer.vip_tier} />
+                ) : null}
+              </View>
+              <Text style={styles.status}>
+                {call.status === "incoming" && "wants to talk with you"}
+                {call.status === "outgoing" && "Ringing..."}
+                {call.status === "active" && (muted ? "You are muted" : "Connected")}
+              </Text>
+            </View>
+
+            <View style={styles.actions}>
+              {call.status === "incoming" ? (
+                <>
+                  <View style={styles.actionCol}>
                     <Pressable
                       testID="call-decline-btn"
                       style={[styles.actionBtn, styles.danger]}
                       onPress={declineCall}
                     >
-                      <Ionicons name="call" size={26} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
+                      <Ionicons
+                        name="call"
+                        size={28}
+                        color="#FFF"
+                        style={{ transform: [{ rotate: "135deg" }] }}
+                      />
                     </Pressable>
+                    <Text style={styles.actionLabel}>Decline</Text>
+                  </View>
+                  <View style={styles.actionCol}>
                     <Pressable
                       testID="call-accept-btn"
                       style={[styles.actionBtn, styles.accept]}
                       onPress={acceptCall}
                     >
-                      <Ionicons name="call" size={26} color="#FFF" />
+                      <Ionicons name="call" size={28} color="#FFF" />
                     </Pressable>
-                  </>
-                )}
-                {call.status !== "incoming" && (
-                  <>
-                    {call.status === "active" && (
+                    <Text style={styles.actionLabel}>Accept</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  {call.status === "active" && (
+                    <View style={styles.actionCol}>
                       <Pressable
                         testID="call-mute-btn"
-                        style={[styles.actionBtn, styles.neutral]}
+                        style={[styles.actionBtn, styles.neutral, muted && styles.neutralActive]}
                         onPress={toggleMute}
                       >
                         <Ionicons
                           name={muted ? "mic-off" : "mic"}
-                          size={24}
-                          color={colors.onSurface}
+                          size={26}
+                          color="#FFF"
                         />
                       </Pressable>
-                    )}
+                      <Text style={styles.actionLabel}>
+                        {muted ? "Unmute" : "Mute"}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.actionCol}>
                     <Pressable
                       testID="call-end-btn"
                       style={[styles.actionBtn, styles.danger]}
                       onPress={endCall}
                     >
-                      <Ionicons name="call" size={26} color="#FFF" style={{ transform: [{ rotate: "135deg" }] }} />
+                      <Ionicons
+                        name="call"
+                        size={28}
+                        color="#FFF"
+                        style={{ transform: [{ rotate: "135deg" }] }}
+                      />
                     </Pressable>
-                  </>
-                )}
-              </View>
+                    <Text style={styles.actionLabel}>End</Text>
+                  </View>
+                </>
+              )}
             </View>
-          </View>
+          </LinearGradient>
         )}
       </Modal>
     </CallContext.Provider>
@@ -354,41 +470,88 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(8, 25, 43, 0.72)",
       alignItems: "center",
-      justifyContent: "center",
-      padding: spacing.xl,
+      justifyContent: "space-between",
+      paddingVertical: spacing.xxl * 2,
+      paddingHorizontal: spacing.xl,
     },
-    card: {
-      width: "100%",
-      maxWidth: 340,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing.xxl,
+    topArea: {
       alignItems: "center",
       gap: spacing.md,
     },
+    callKind: {
+      fontFamily: fonts.textBold,
+      fontSize: 13,
+      color: "rgba(255,255,255,0.65)",
+      textTransform: "uppercase",
+      letterSpacing: 1.2,
+    },
+    timerPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    liveDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: "#22C55E",
+    },
+    timerText: {
+      fontFamily: fonts.displaySemi,
+      fontSize: 16,
+      color: "#FFFFFF",
+    },
+    centerArea: {
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    avatarWrap: {
+      width: 150,
+      height: 150,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.md,
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
     name: {
       fontFamily: fonts.display,
-      fontSize: 22,
-      color: colors.onSurface,
+      fontSize: 28,
+      color: "#FFFFFF",
     },
     status: {
       fontFamily: fonts.textSemi,
-      fontSize: 14,
-      color: colors.onSurfaceSecondary,
+      fontSize: 15,
+      color: "rgba(255,255,255,0.6)",
     },
     actions: {
       flexDirection: "row",
-      gap: spacing.xxl,
-      marginTop: spacing.lg,
+      gap: spacing.xxl * 1.5,
+      alignItems: "flex-end",
+    },
+    actionCol: {
+      alignItems: "center",
+      gap: spacing.sm,
     },
     actionBtn: {
-      width: 60,
-      height: 60,
-      borderRadius: radius.pill,
+      width: 68,
+      height: 68,
+      borderRadius: 34,
       alignItems: "center",
       justifyContent: "center",
+    },
+    actionLabel: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: "rgba(255,255,255,0.75)",
     },
     danger: {
       backgroundColor: "#EF4444",
@@ -397,6 +560,9 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: "#10B981",
     },
     neutral: {
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: "rgba(255,255,255,0.14)",
+    },
+    neutralActive: {
+      backgroundColor: "rgba(255,255,255,0.35)",
     },
   });

@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from auth_utils import CurrentUser
-from db import users_col
+from db import market_config_col, users_col
 from models import user_public
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -51,8 +51,13 @@ async def get_market(current_user: CurrentUser):
     active_badge = current_user.get("active_badge") or {}
     active_frame = current_user.get("active_frame") or {}
     items = []
+    overrides = {d["_id"]: d async for d in market_config_col.find({})}
     for item in CATALOG:
+        o = overrides.get(item["id"], {})
+        if o.get("disabled"):
+            continue
         entry = dict(item)
+        entry["price"] = o.get("price", item["price"])
         if item["type"] == "vip":
             entry["active"] = bool(
                 current_user.get("is_vip")
@@ -76,10 +81,14 @@ async def buy_item(body: BuyRequest, current_user: CurrentUser):
     item = ITEM_MAP.get(body.item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    override = await market_config_col.find_one({"_id": body.item_id}) or {}
+    if override.get("disabled"):
+        raise HTTPException(status_code=400, detail="Item is currently unavailable")
+    price = override.get("price", item["price"])
     coins = current_user.get("coins", 0)
-    if coins < item["price"]:
+    if coins < price:
         raise HTTPException(status_code=400, detail="Not enough coins")
-    updates: dict = {"coins": coins - item["price"]}
+    updates: dict = {"coins": coins - price}
     expires = (
         (_now() + timedelta(days=item["duration_days"])).isoformat()
         if item.get("duration_days")

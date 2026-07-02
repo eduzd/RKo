@@ -96,7 +96,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   testID,
   flagCode,
   online,
-  frameColor,
+  frame,
   isSpeaking,
 }) => {
   const { colors } = useTheme();

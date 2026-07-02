@@ -17,6 +17,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -41,7 +42,7 @@ import { clockTime } from "@/src/utils/time";
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const { colors } = useTheme();
   const { startCall } = useCall();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
@@ -56,6 +57,7 @@ export default function ChatScreen() {
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -252,6 +254,96 @@ export default function ChatScreen() {
 
   const partner = conversation?.partner;
 
+  const momentsHidden = !!(
+    partner?.id && (user?.hidden_moment_users || []).includes(partner.id)
+  );
+  const isBlocked = !!(
+    partner?.id && (user?.blocked_users || []).includes(partner.id)
+  );
+
+  const toggleMuteChat = async () => {
+    try {
+      const res = await api.post<{ muted: boolean }>(`/chats/${id}/mute`);
+      setConversation((prev) => (prev ? { ...prev, muted: res.muted } : prev));
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleHideMoments = async () => {
+    if (!partner?.id) return;
+    try {
+      const res = await api.post<{ hidden: boolean }>(
+        `/users/${partner.id}/hide-moments`,
+      );
+      if (user) {
+        const list = user.hidden_moment_users || [];
+        setUser({
+          ...user,
+          hidden_moment_users: res.hidden
+            ? [...list, partner.id]
+            : list.filter((x) => x !== partner.id),
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleBlock = () => {
+    if (!partner?.id) return;
+    const doToggle = async () => {
+      try {
+        const res = await api.post<{ blocked: boolean }>(
+          `/users/${partner.id}/block`,
+        );
+        if (user) {
+          const list = user.blocked_users || [];
+          setUser({
+            ...user,
+            blocked_users: res.blocked
+              ? [...list, partner.id]
+              : list.filter((x) => x !== partner.id),
+          });
+        }
+        setMenuOpen(false);
+      } catch {
+        // ignore
+      }
+    };
+    if (isBlocked) {
+      doToggle();
+    } else {
+      Alert.alert(
+        "Block user",
+        `${partner.name} won't be able to message you anymore.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Block", style: "destructive", onPress: doToggle },
+        ],
+      );
+    }
+  };
+
+  const clearHistory = () => {
+    Alert.alert("Clear chat history", "All messages will be deleted.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/chats/${id}/messages`);
+            setMessages([]);
+            setMenuOpen(false);
+          } catch {
+            // ignore
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="chat-screen">
       <View style={styles.header}>
@@ -287,9 +379,108 @@ export default function ChatScreen() {
             >
               <Ionicons name="call" size={18} color={colors.onBrand} />
             </Pressable>
+            <Pressable
+              testID="chat-menu-btn"
+              style={styles.menuBtn}
+              onPress={() => setMenuOpen(true)}
+            >
+              <Ionicons
+                name="ellipsis-vertical"
+                size={18}
+                color={colors.onSurface}
+              />
+            </Pressable>
           </>
         )}
       </View>
+
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+          <Pressable style={styles.menuCard} onPress={() => {}}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>{partner?.name}</Text>
+              <Pressable
+                testID="chat-menu-close-btn"
+                onPress={() => setMenuOpen(false)}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={24} color={colors.onSurfaceSecondary} />
+              </Pressable>
+            </View>
+            <Pressable
+              testID="chat-menu-profile"
+              style={styles.menuRow}
+              onPress={() => {
+                setMenuOpen(false);
+                if (partner?.id) router.push(`/user/${partner.id}`);
+              }}
+            >
+              <Ionicons name="person-circle-outline" size={22} color={colors.brand} />
+              <Text style={styles.menuText}>View profile</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
+            </Pressable>
+            <Pressable
+              testID="chat-menu-mute"
+              style={styles.menuRow}
+              onPress={toggleMuteChat}
+            >
+              <Ionicons
+                name={conversation?.muted ? "notifications-off" : "notifications-outline"}
+                size={21}
+                color={colors.brand}
+              />
+              <Text style={styles.menuText}>
+                {conversation?.muted ? "Unmute notifications" : "Mute notifications"}
+              </Text>
+              <View style={[styles.menuToggle, conversation?.muted && styles.menuToggleOn]}>
+                <View style={[styles.menuThumb, conversation?.muted && styles.menuThumbOn]} />
+              </View>
+            </Pressable>
+            <Pressable
+              testID="chat-menu-hide-moments"
+              style={styles.menuRow}
+              onPress={toggleHideMoments}
+            >
+              <Ionicons
+                name={momentsHidden ? "eye-off" : "eye-off-outline"}
+                size={21}
+                color={colors.brand}
+              />
+              <Text style={styles.menuText}>
+                {momentsHidden ? "Show their Moments" : "Hide their Moments"}
+              </Text>
+              <View style={[styles.menuToggle, momentsHidden && styles.menuToggleOn]}>
+                <View style={[styles.menuThumb, momentsHidden && styles.menuThumbOn]} />
+              </View>
+            </Pressable>
+            <Pressable
+              testID="chat-menu-clear"
+              style={styles.menuRow}
+              onPress={clearHistory}
+            >
+              <Ionicons name="trash-outline" size={21} color={colors.brand} />
+              <Text style={styles.menuText}>Clear chat history</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
+            </Pressable>
+            <Pressable
+              testID="chat-menu-block"
+              style={styles.menuRow}
+              onPress={toggleBlock}
+            >
+              <Ionicons name="ban" size={21} color={colors.error} />
+              <Text style={[styles.menuText, { color: colors.error }]}>
+                {isBlocked ? "Unblock user" : "Block user"}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -511,6 +702,71 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.success,
       alignItems: "center",
       justifyContent: "center",
+    },
+    menuBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceSecondary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: spacing.xs,
+    },
+    menuBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(15, 23, 42, 0.45)",
+      justifyContent: "flex-end",
+    },
+    menuCard: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      padding: spacing.xl,
+      paddingBottom: spacing.xxl,
+      gap: spacing.xs,
+    },
+    menuHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: spacing.sm,
+    },
+    menuTitle: {
+      fontFamily: fonts.display,
+      fontSize: 19,
+      color: colors.onSurface,
+    },
+    menuRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    menuText: {
+      flex: 1,
+      fontFamily: fonts.textSemi,
+      fontSize: 15,
+      color: colors.onSurface,
+    },
+    menuToggle: {
+      width: 40,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.borderStrong,
+      padding: 2,
+      justifyContent: "center",
+    },
+    menuToggleOn: {
+      backgroundColor: colors.brand,
+    },
+    menuThumb: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: "#FFFFFF",
+    },
+    menuThumbOn: {
+      alignSelf: "flex-end",
     },
     center: {
       flex: 1,

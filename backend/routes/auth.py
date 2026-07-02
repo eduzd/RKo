@@ -58,6 +58,8 @@ async def login(body: LoginRequest):
     doc = await users_col.find_one({"email": body.email.lower()})
     if not doc or not verify_password(body.password, doc["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+    if doc.get("banned"):
+        raise HTTPException(status_code=403, detail="Your account has been banned.")
     doc = await touch_streak(doc)
     return {"token": create_access_token(doc["_id"]), "user": user_public(doc)}
 
