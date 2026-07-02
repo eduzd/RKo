@@ -55,7 +55,6 @@ const AnimatedRing: React.FC<{
 
   return (
     <Animated.View
-      pointerEvents="none"
       testID={testID}
       style={[
         {
@@ -66,6 +65,7 @@ const AnimatedRing: React.FC<{
           bottom: -gap,
           borderRadius: (size + gap * 2) / 2,
           borderWidth: width,
+          pointerEvents: "none",
         },
         animStyle,
       ]}

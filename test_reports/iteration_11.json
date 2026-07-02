@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 11 WebRTC refactor — VOICE ROOM AUDIO MESH + 1:1 CALL REGRESSION all passing. Two independent chromium contexts (channel='chromium' + --use-fake-ui-for-media-devices + --use-fake-device-for-media-stream + permissions=['microphone']). Mei (VIP) hosts a fresh room, demo joins; both render room-screen with host card and '2 members'; host has room-mic-btn, listener has room-hand-btn. Mic off/on toggle works with no crash. demo raises hand → host sees hand-requests-panel. demo leaves → host still stable → host ends room cleanly. Console scan across both contexts: 0 addIceCandidate/setRemoteDescription/InvalidStateError/OperationError messages, 0 uncaught pageerrors, no rtc_offer flood. 1:1 regression (demo → mei from chat): outgoing overlay shows, mei's page receives incoming, accept → both sides show call-timer, end closes both overlays. Shared getRTC/webrtcAvailable abstraction and per-peer ICE buffering are working as designed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/room_audio_test.py",
+    "/app/test_reports/call_test.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "use-room-audio.ts flushIce is guarded by pc.remoteDescription — correct ordering; queued candidates flushed on offer, answer, and every rtc_ice event.",
+    "Deterministic initiator (myId > peerId) prevents glare; onconnectionstatechange==='failed' triggers closePeer + re-offer only from initiator, avoiding double reconnect.",
+    "webrtc.ts gracefully returns null on Expo Go (no react-native-webrtc) — useRoomAudio/CallContext both early-return via webrtcAvailable().",
+    "Room ICE messages carry room_id and are gated by event.room_id !== roomId in the subscribe handler — no cross-room leakage."
+  ],
+  "updated_files": [
+    "/app/test_reports/room_audio_test.py (new — full voice-room mesh + 1:1 regression suite)"
+  ],
+  "success_rate": {"backend": "N/A (frontend-only retest)", "frontend": "100% (all voice-room + call scenarios)"},
+  "seed_data_creation": "One live voice room created per run (title 'WebRTC Regression <ts>') and immediately ended by the host — cleaned up automatically.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Playwright MUST use channel='chromium' (not headless_shell) plus --use-fake-ui-for-media-devices, --use-fake-device-for-media-stream, and context permissions=['microphone'] — otherwise getUserMedia rejects and the room mounts without local tracks. Language chips inside the create-room modal live inside a horizontal ScrollView that clips off-screen chips; use element.evaluate('el => el.click()') as a fallback when Playwright reports 'outside of the viewport'. Test file: /app/test_reports/room_audio_test.py.",
+  "rca_of_issue": "N/A — no regressions found. The webrtc.ts extraction and use-room-audio.ts hardening (ICE buffering per-peer, re-offer on 'failed', proper cleanup) are functioning cleanly on web; native path is code-reviewed but not runtime-testable in Expo Go / web preview."
+}

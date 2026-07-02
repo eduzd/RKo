@@ -32,6 +32,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { User, wsUrl } from "@/src/utils/api";
+import { RTC_CONFIG, getRTC, webrtcAvailable } from "@/src/utils/webrtc";
 
 /** Expanding ripple ring behind the avatar while ringing. */
 const PulseRing: React.FC<{ size: number; delay: number }> = ({
@@ -58,7 +59,6 @@ const PulseRing: React.FC<{ size: number; delay: number }> = ({
 
   return (
     <Animated.View
-      pointerEvents="none"
       style={[
         {
           position: "absolute",
@@ -67,6 +67,7 @@ const PulseRing: React.FC<{ size: number; delay: number }> = ({
           borderRadius: size / 2,
           borderWidth: 2,
           borderColor: "#7DD3FC",
+          pointerEvents: "none",
         },
         style,
       ]}
@@ -89,52 +90,6 @@ interface CallContextValue {
 }
 
 const CallContext = createContext<CallContextValue | undefined>(undefined);
-
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-};
-
-// Native WebRTC (react-native-webrtc) — available in production/dev builds,
-// gracefully absent in Expo Go.
-let NativeWebRTC: any = null;
-if (Platform.OS !== "web") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    NativeWebRTC = require("react-native-webrtc");
-  } catch {
-    NativeWebRTC = null;
-  }
-}
-
-const getRTC = (): { PC: any; mediaDevices: any; native: boolean } | null => {
-  if (Platform.OS === "web") {
-    if (
-      typeof navigator !== "undefined" &&
-      !!navigator.mediaDevices &&
-      typeof (window as any).RTCPeerConnection === "function"
-    ) {
-      return {
-        PC: (window as any).RTCPeerConnection,
-        mediaDevices: navigator.mediaDevices,
-        native: false,
-      };
-    }
-    return null;
-  }
-  if (NativeWebRTC?.RTCPeerConnection && NativeWebRTC?.mediaDevices) {
-    return {
-      PC: NativeWebRTC.RTCPeerConnection,
-      mediaDevices: NativeWebRTC.mediaDevices,
-      native: true,
-    };
-  }
-  return null;
-};
-
-const webrtcAvailable = () => !!getRTC();
 
 const RING_TIMEOUT_MS = 45000;
 

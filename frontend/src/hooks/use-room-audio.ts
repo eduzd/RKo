@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
 
 import { RoomMember } from "@/src/utils/api";
+import { RTC_CONFIG, getRTC, webrtcAvailable } from "@/src/utils/webrtc";
 
 interface RoomAudioParams {
   roomId: string;
@@ -11,20 +11,12 @@ interface RoomAudioParams {
   subscribe: (fn: (event: any) => void) => () => void;
 }
 
-const RTC_CONFIG = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
-
-const webrtcAvailable = () =>
-  Platform.OS === "web" &&
-  typeof navigator !== "undefined" &&
-  !!navigator.mediaDevices &&
-  typeof (window as any).RTCPeerConnection === "function";
-
 /**
- * Full-mesh WebRTC audio for a voice room (web only).
+ * Full-mesh WebRTC audio for a voice room (web + native builds).
  * Speakers publish their mic; everyone receives. Deterministic initiator
  * (greater id offers) avoids glare. Mic toggle enables/disables the track.
+ * ICE candidates are buffered per-peer until the remote description is set,
+ * and failed connections are automatically re-initiated.
  */
 export function useRoomAudio({
   roomId,
@@ -35,6 +27,7 @@ export function useRoomAudio({
 }: RoomAudioParams) {
   const peersRef = useRef<Map<string, any>>(new Map());
   const audioElsRef = useRef<Map<string, any>>(new Map());
+  const pendingIceRef = useRef<Map<string, any[]>>(new Map());
   const localStreamRef = useRef<any>(null);
   const me = members.find((m) => m.id === myId);
   const iSpeak = !!me && (me.role === "host" || me.role === "speaker");
@@ -62,11 +55,12 @@ export function useRoomAudio({
   const closePeer = (peerId: string) => {
     peersRef.current.get(peerId)?.close?.();
     peersRef.current.delete(peerId);
+    pendingIceRef.current.delete(peerId);
     const el = audioElsRef.current.get(peerId);
-    if (el) {
+    if (el && typeof el === "object" && "srcObject" in el) {
       el.srcObject = null;
-      audioElsRef.current.delete(peerId);
     }
+    audioElsRef.current.delete(peerId);
   };
 
   const closeAllPeers = () => {
@@ -77,9 +71,11 @@ export function useRoomAudio({
     if (!iSpeakRef.current) return null;
     if (!localStreamRef.current) {
       try {
-        localStreamRef.current = await (
-          navigator as any
-        ).mediaDevices.getUserMedia({ audio: true });
+        const rtc = getRTC();
+        if (!rtc) return null;
+        localStreamRef.current = await rtc.mediaDevices.getUserMedia({
+          audio: true,
+        });
         localStreamRef.current.getAudioTracks().forEach((t: any) => {
           t.enabled = micOn;
         });
@@ -90,8 +86,35 @@ export function useRoomAudio({
     return localStreamRef.current;
   };
 
+  const flushIce = async (peerId: string) => {
+    const pc = peersRef.current.get(peerId);
+    if (!pc || !pc.remoteDescription) return;
+    const queued = pendingIceRef.current.get(peerId) || [];
+    pendingIceRef.current.set(peerId, []);
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch {
+        // stale candidate; ignore
+      }
+    }
+  };
+
+  const initiateTo = async (peerId: string) => {
+    try {
+      const pc = await createPeer(peerId);
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+      sendSignal({ type: "rtc_offer", to: peerId, room_id: roomId, sdp: offer });
+    } catch {
+      closePeer(peerId);
+    }
+  };
+
   const createPeer = async (peerId: string) => {
-    const pc = new (window as any).RTCPeerConnection(RTC_CONFIG);
+    const rtc = getRTC();
+    if (!rtc) throw new Error("webrtc-unavailable");
+    const pc = new rtc.PC(RTC_CONFIG);
     peersRef.current.set(peerId, pc);
     const stream = await ensureLocalStream();
     if (stream) {
@@ -107,11 +130,23 @@ export function useRoomAudio({
         });
       }
     };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "failed") {
+        // Recover: tear down and re-offer if I'm the initiator.
+        closePeer(peerId);
+        if (myId > peerId) initiateTo(peerId);
+      }
+    };
     pc.ontrack = (e: any) => {
-      const audio = document.createElement("audio");
-      audio.autoplay = true;
-      audio.srcObject = e.streams[0];
-      audioElsRef.current.set(peerId, audio);
+      if (rtc.native) {
+        // react-native-webrtc plays remote audio tracks automatically.
+        audioElsRef.current.set(peerId, e.streams?.[0] || null);
+      } else {
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.srcObject = e.streams[0];
+        audioElsRef.current.set(peerId, audio);
+      }
     };
     return pc;
   };
@@ -130,19 +165,7 @@ export function useRoomAudio({
     otherIds.forEach(async (peerId) => {
       if (peersRef.current.has(peerId)) return;
       if (myId > peerId) {
-        try {
-          const pc = await createPeer(peerId);
-          const offer = await pc.createOffer({ offerToReceiveAudio: true });
-          await pc.setLocalDescription(offer);
-          sendSignal({
-            type: "rtc_offer",
-            to: peerId,
-            room_id: roomId,
-            sdp: offer,
-          });
-        } catch {
-          closePeer(peerId);
-        }
+        await initiateTo(peerId);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,6 +184,7 @@ export function useRoomAudio({
           await pc.setRemoteDescription(event.sdp);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
+          await flushIce(from);
           sendSignal({
             type: "rtc_answer",
             to: from,
@@ -169,8 +193,14 @@ export function useRoomAudio({
           });
         } else if (event.type === "rtc_answer") {
           await peersRef.current.get(from)?.setRemoteDescription(event.sdp);
+          await flushIce(from);
         } else if (event.type === "rtc_ice") {
-          await peersRef.current.get(from)?.addIceCandidate(event.candidate);
+          if (event.candidate) {
+            const queue = pendingIceRef.current.get(from) || [];
+            queue.push(event.candidate);
+            pendingIceRef.current.set(from, queue);
+            await flushIce(from);
+          }
         }
       } catch {
         // signaling race; peer will retry on next membership change
