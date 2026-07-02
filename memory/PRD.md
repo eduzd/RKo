@@ -96,3 +96,12 @@
 ✅ Chats list: VIP badge + active badge emoji next to names, frame rings; live voice-room status (purple mic badge on avatar + "🎙️ In voice room · name" line, GET /chats attaches partner.in_voice_room from live rooms members dict)
 ✅ /search revamped: language filters removed → funnel filter icon toggles panel (age presets 18-25/26-35/36+, location country/city input, gender, online, reset + count badge); backend /users/partners min_age/max_age/location params
 ✅ Profile "About" (About me/Country/Age/Gender/Interests) = one collapsible card (collapse-about), auto-expands in edit mode
+
+## Iterations 9-11 (tested & passing — iteration_9/10/11.json)
+✅ Connect header bug fixed (search icon top-right on scroll; header row + missing styles)
+✅ Unique usernames: auto-generated at register, startup backfill, PUT /users/me/username (once/30d, 429/409/400), @username pill on own profile w/ edit modal + shown on user profiles; unique sparse index
+✅ Profile redesign: name 24, username pill, gradient gold VIP banner (LinearGradient), radius.lg cards, bigger stats
+✅ 1:1 calls production-grade: shared /src/utils/webrtc.ts (web + react-native-webrtc native builds, Expo Go fallback), ICE buffering, 45s ring timeout, call_unavailable (offline callee), cross-platform notify() (RN-web Alert is no-op!), full E2E pass (ring/accept/timer/end/decline/offline/mic-denied)
+✅ Voice room mesh on same WebRTC stack: per-peer ICE buffering, auto re-offer on 'failed', native-capable, E2E pass (host+listener, mic toggle, hand raise, leave/end)
+⚠️ ws@8 pinned as devDependency (react-native-webrtc install caused ws@7 hoist → expo 'WebSocketServer is not a constructor' crash)
+✅ Admin URL for user: /admin-x7k2p9 (admin@lingua.app / Admin1234!)
