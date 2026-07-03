@@ -85,7 +85,11 @@ async def list_users(admin: AdminUser, search: str | None = None):
             {"name": {"$regex": search, "$options": "i"}},
             {"email": {"$regex": search, "$options": "i"}},
         ]
-    docs = await users_col.find(query).sort("created_at", -1).to_list(300)
+    docs = (
+        await users_col.find(query, {"password_hash": 0})
+        .sort("created_at", -1)
+        .to_list(300)
+    )
     return [admin_user_row(d) for d in docs]
 
 
@@ -159,10 +163,26 @@ async def delete_user(user_id: str, admin: AdminUser):
 
 @router.get("/moments")
 async def list_all_moments(admin: AdminUser):
-    docs = await moments_col.find({}).sort("created_at", -1).to_list(100)
+    docs = (
+        await moments_col.find(
+            {},
+            {"user_id": 1, "text": 1, "image_id": 1, "likes": 1, "comment_count": 1, "created_at": 1},
+        )
+        .sort("created_at", -1)
+        .to_list(100)
+    )
+    author_ids = list({d["user_id"] for d in docs})
+    authors = (
+        await users_col.find(
+            {"_id": {"$in": author_ids}}, {"name": 1, "email": 1}
+        ).to_list(len(author_ids))
+        if author_ids
+        else []
+    )
+    author_map = {u["_id"]: u for u in authors}
     out = []
     for d in docs:
-        author = await users_col.find_one({"_id": d["user_id"]})
+        author = author_map.get(d["user_id"])
         out.append(
             {
                 "id": d["_id"],

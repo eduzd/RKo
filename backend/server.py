@@ -75,7 +75,7 @@ async def seed_admin():
         {
             "_id": str(uuid.uuid4()),
             "email": email,
-            "password_hash": hash_password("Admin1234!"),
+            "password_hash": hash_password(os.environ.get("ADMIN_PASSWORD", "Admin1234!")),
             "name": "Admin",
             "is_admin": True,
             "banned": False,

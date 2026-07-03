@@ -86,7 +86,14 @@ def comment_public(doc: dict, author: dict | None) -> dict:
 
 @router.get("")
 async def list_moments(current_user: CurrentUser):
-    docs = await moments_col.find({}).sort("created_at", -1).to_list(100)
+    docs = (
+        await moments_col.find(
+            {},
+            {"user_id": 1, "text": 1, "image_id": 1, "likes": 1, "comment_count": 1, "created_at": 1},
+        )
+        .sort("created_at", -1)
+        .to_list(100)
+    )
     hidden = set(current_user.get("hidden_moment_users") or []) | set(
         current_user.get("blocked_users") or []
     )

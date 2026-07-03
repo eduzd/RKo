@@ -240,7 +240,11 @@ async def list_partners(
             ors.append({"learning_languages": {"$in": my_teach}})
         if ors:
             query["$or"] = ors
-    docs = await users_col.find(query).sort("created_at", -1).to_list(100)
+    docs = (
+        await users_col.find(query, {"password_hash": 0})
+        .sort("created_at", -1)
+        .to_list(100)
+    )
     online_ids = manager.online_user_ids()
     if online_only:
         docs = [d for d in docs if d["_id"] in online_ids]
