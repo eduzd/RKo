@@ -44,8 +44,9 @@ def _card_with_presence(author: dict | None) -> dict | None:
     return apply_privacy(card, author)
 
 
-async def moment_public(doc: dict, viewer_id: str) -> dict:
-    author = await users_col.find_one({"_id": doc["user_id"]})
+async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -> dict:
+    if author is None:
+        author = await users_col.find_one({"_id": doc["user_id"]})
     likes = doc.get("likes", [])
     likers = []
     if likes:
@@ -90,7 +91,17 @@ async def list_moments(current_user: CurrentUser):
         current_user.get("blocked_users") or []
     )
     docs = [d for d in docs if d["user_id"] not in hidden]
-    return [await moment_public(d, current_user["_id"]) for d in docs]
+    author_ids = list({d["user_id"] for d in docs})
+    authors = (
+        await users_col.find({"_id": {"$in": author_ids}}).to_list(len(author_ids))
+        if author_ids
+        else []
+    )
+    author_map = {u["_id"]: u for u in authors}
+    return [
+        await moment_public(d, current_user["_id"], author_map.get(d["user_id"]))
+        for d in docs
+    ]
 
 
 @router.post("", status_code=201)

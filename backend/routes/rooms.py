@@ -65,11 +65,14 @@ async def broadcast_room(doc: dict, extra: dict | None = None):
 @router.get("")
 async def list_rooms(current_user: CurrentUser):
     docs = await rooms_col.find({"is_live": True}).sort("created_at", -1).to_list(50)
-    results = []
-    for d in docs:
-        host = await users_col.find_one({"_id": d["host_id"]})
-        results.append(room_summary(d, host))
-    return results
+    host_ids = list({d["host_id"] for d in docs})
+    hosts = (
+        await users_col.find({"_id": {"$in": host_ids}}).to_list(len(host_ids))
+        if host_ids
+        else []
+    )
+    host_map = {u["_id"]: u for u in hosts}
+    return [room_summary(d, host_map.get(d["host_id"])) for d in docs]
 
 
 @router.post("", status_code=201)

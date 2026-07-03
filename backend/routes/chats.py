@@ -35,9 +35,12 @@ def message_public(doc: dict) -> dict:
     }
 
 
-async def conversation_public(doc: dict, viewer_id: str) -> dict:
+async def conversation_public(
+    doc: dict, viewer_id: str, partner: dict | None = None
+) -> dict:
     partner_id = next((p for p in doc["participant_ids"] if p != viewer_id), viewer_id)
-    partner = await users_col.find_one({"_id": partner_id})
+    if partner is None:
+        partner = await users_col.find_one({"_id": partner_id})
     partner_card = None
     if partner:
         partner_card = user_card(partner)
@@ -134,7 +137,22 @@ async def list_conversations(current_user: CurrentUser):
         .sort("updated_at", -1)
         .to_list(100)
     )
-    results = [await conversation_public(d, current_user["_id"]) for d in docs]
+    uid = current_user["_id"]
+    partner_ids = list(
+        {next((p for p in d["participant_ids"] if p != uid), uid) for d in docs}
+    )
+    partners = (
+        await users_col.find({"_id": {"$in": partner_ids}}).to_list(len(partner_ids))
+        if partner_ids
+        else []
+    )
+    partner_map = {u["_id"]: u for u in partners}
+    results = [
+        await conversation_public(
+            d, uid, partner_map.get(next((p for p in d["participant_ids"] if p != uid), uid))
+        )
+        for d in docs
+    ]
     # Attach live voice-room status to partners
     live_rooms = await rooms_col.find({"is_live": True}).to_list(100)
     room_map: dict = {}
