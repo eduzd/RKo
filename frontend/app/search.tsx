@@ -72,7 +72,7 @@ export default function Search() {
   }, [load, query, location]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="search-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="search-screen">
       <View style={styles.header}>
         <Pressable
           testID="search-back-btn"

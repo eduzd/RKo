@@ -44,7 +44,7 @@ export default function Visitors() {
   }, [tab]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="visitors-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="visitors-screen">
       <View style={styles.header}>
         <Pressable
           testID="visitors-back-btn"

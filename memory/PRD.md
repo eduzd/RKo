@@ -138,3 +138,8 @@ Note: Daily streak (backend touch_streak + profile/user page display) already ex
 ✅ LanguagePair compact mode: flags removed entirely (codes only) — used on Connect cards AND profile card (compact prop added there)
 ✅ Moment detail header always shows author (avatar+name+VIP row) instead of "Moment" title; missing headerAuthor/headerAuthorName styles added; removed dead showAuthorBar state
 ✅ Profile About section: removed set-once Country/Age/Gender rows + their states/payload fields (only About me bio + Interests remain; these fields are set at signup only)
+
+## Iteration 13b — app-wide bottom-bar overlap + user profile chips (verified)
+✅ SafeAreaView edges now include "bottom" on ALL non-tab stack screens: user/[id], follows, market, notifications, search, visitors, admin-x7k2p9 (tab screens covered by insets-aware tab bar; chat/moment/room already had bottom edge; auth/onboarding/index use default all-edges)
+✅ Call overlay (CallContext modal) now pads with insets.top/bottom so accept/decline/end buttons never touch the home indicator
+✅ user/[id] profile languages now compact (no flags, small codes) like Connect/profile

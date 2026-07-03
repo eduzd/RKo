@@ -74,7 +74,7 @@ export default function UserProfile() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="user-profile-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="user-profile-screen">
       <View style={styles.header}>
         <Pressable
           testID="user-profile-back-btn"
@@ -116,6 +116,7 @@ export default function UserProfile() {
               </Text>
             )}
             <LanguagePair
+              compact
               native={profile.native_language}
               teach={profile.teach_languages}
               learning={

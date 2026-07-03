@@ -169,7 +169,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <SafeAreaView style={s.container} edges={["top"]} testID="admin-dashboard">
+    <SafeAreaView style={s.container} edges={["top", "bottom"]} testID="admin-dashboard">
       <View style={s.topBar}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Ionicons name="shield-checkmark" size={22} color={BRAND} />

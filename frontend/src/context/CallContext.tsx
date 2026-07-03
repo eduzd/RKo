@@ -35,6 +35,7 @@ import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { User, wsUrl } from "@/src/utils/api";
 import { RTC_CONFIG, getRTC, webrtcAvailable } from "@/src/utils/webrtc";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /** Expanding ripple ring behind the avatar while ringing. */
 const PulseRing: React.FC<{ size: number; delay: number }> = ({
@@ -400,6 +401,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [call?.status]);
 
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
 
@@ -410,7 +412,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({
         {call && (
           <LinearGradient
             colors={["#0B1B2E", "#14335A", "#0B1B2E"]}
-            style={styles.backdrop}
+            style={[
+              styles.backdrop,
+              {
+                paddingTop: spacing.xxl * 2 + insets.top,
+                paddingBottom: spacing.xxl * 2 + insets.bottom,
+              },
+            ]}
             testID="call-overlay"
           >
             <View style={styles.topArea}>
@@ -547,7 +555,6 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
       alignItems: "center",
       justifyContent: "space-between",
-      paddingVertical: spacing.xxl * 2,
       paddingHorizontal: spacing.xl,
     },
     topArea: {

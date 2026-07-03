@@ -45,7 +45,7 @@ export default function Notifications() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="notifications-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="notifications-screen">
       <View style={styles.header}>
         <Pressable
           testID="notifications-back-btn"

@@ -93,7 +93,7 @@ export default function Market() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="market-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="market-screen">
       <View style={styles.header}>
         <Pressable
           testID="market-back-btn"

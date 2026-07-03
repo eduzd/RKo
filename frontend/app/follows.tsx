@@ -45,7 +45,7 @@ export default function Follows() {
   }, [active, load]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} testID="follows-screen">
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="follows-screen">
       <View style={styles.header}>
         <Pressable
           testID="follows-back-btn"
