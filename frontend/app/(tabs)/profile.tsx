@@ -56,7 +56,7 @@ const FEATURES: {
 export default function Profile() {
   const { user, setUser, logout } = useAuth();
   const { colors, mode, toggleMode } = useTheme();
-  const { markProfileRead, momentsUnread, profileUnread } = useNotifications();
+  const { momentsUnread, profileUnread } = useNotifications();
   const router = useRouter();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
@@ -77,7 +77,11 @@ export default function Profile() {
 
   useFocusEffect(
     useCallback(() => {
-      markProfileRead();
+      // Note: we intentionally do NOT call markProfileRead() here. The
+      // Me-tab dot and the "Notifications" grid badge are only cleared when
+      // the user actually opens the unified /notifications feed and reads
+      // the detail (see notifications.tsx -> markAllRead()). Clearing on
+      // mere tab visit would zero the badge before the user ever sees it.
       api
         .get<{ count: number; visitors: Visitor[]; vip_required: boolean }>(
           "/users/me/visitors",
@@ -110,7 +114,7 @@ export default function Profile() {
           }
         })
         .catch(() => {});
-    }, [setUser, markProfileRead]),
+    }, [setUser]),
   );
 
   const refreshPushStatus = useCallback(() => {
