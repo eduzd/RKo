@@ -20,6 +20,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -81,6 +82,22 @@ const sameDay = (a?: string, b?: string): boolean =>
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
+const QUICK_EMOJIS = [
+  "😊", "😂", "❤️", "👍", "🙏", "😍", "🎉", "😅",
+  "🤔", "😢", "🔥", "✨", "🥰", "😎", "👋", "🙌",
+  "💯", "😘", "🤗", "😴", "🎂", "☕", "🌟", "😇",
+];
+
+const QUICK_TEMPLATES = [
+  "Hi! How are you? 😊",
+  "Nice to meet you!",
+  "Where are you from?",
+  "Let's practice languages together!",
+  "What are your hobbies?",
+  "Sorry, I was busy earlier 🙏",
+  "Have a great day! 🌟",
+];
+
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -107,6 +124,9 @@ export default function ChatScreen() {
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [panel, setPanel] = useState<null | "attach" | "emoji" | "templates">(
+    null,
+  );
   const listRef = useRef<FlatList<Message>>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -913,6 +933,93 @@ export default function ChatScreen() {
               </View>
             )}
           <View style={styles.inputArea}>
+            {panel === "emoji" && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.emojiBar}
+                contentContainerStyle={styles.emojiBarContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {QUICK_EMOJIS.map((e) => (
+                  <Pressable
+                    key={e}
+                    testID={`emoji-${e}`}
+                    style={styles.emojiItem}
+                    onPress={() => setDraft((d) => d + e)}
+                  >
+                    <Text style={styles.emojiText}>{e}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            {panel === "templates" && (
+              <View style={styles.templatePanel}>
+                {QUICK_TEMPLATES.map((t) => (
+                  <Pressable
+                    key={t}
+                    testID="template-item"
+                    style={styles.templateItem}
+                    onPress={() => {
+                      setDraft(t);
+                      setPanel(null);
+                    }}
+                  >
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={15}
+                      color={colors.brand}
+                    />
+                    <Text style={styles.templateText} numberOfLines={1}>
+                      {t}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            {panel === "attach" && (
+              <View style={styles.attachPanel}>
+                <Pressable
+                  testID="attach-photo"
+                  style={styles.attachItem}
+                  onPress={() => {
+                    setPanel(null);
+                    pickImage();
+                  }}
+                >
+                  <View style={[styles.attachIcon, { backgroundColor: "#3B82F6" }]}>
+                    <Ionicons name="image" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.attachLabel}>Photo</Text>
+                </Pressable>
+                <Pressable
+                  testID="attach-call"
+                  style={styles.attachItem}
+                  onPress={() => {
+                    setPanel(null);
+                    if (partner) startCall(partner);
+                  }}
+                >
+                  <View style={[styles.attachIcon, { backgroundColor: "#22C55E" }]}>
+                    <Ionicons name="call" size={22} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.attachLabel}>Voice Call</Text>
+                </Pressable>
+                <Pressable
+                  testID="attach-gift"
+                  style={styles.attachItem}
+                  onPress={() => {
+                    setPanel(null);
+                    router.push("/market");
+                  }}
+                >
+                  <View style={[styles.attachIcon, { backgroundColor: "#F59E0B" }]}>
+                    <Ionicons name="gift" size={22} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.attachLabel}>Gift</Text>
+                </Pressable>
+              </View>
+            )}
             <View style={styles.inputRow}>
               <View style={styles.inputPill}>
                 <TextInput
@@ -923,6 +1030,7 @@ export default function ChatScreen() {
                   selectionColor={colors.brand}
                   value={draft}
                   onChangeText={setDraft}
+                  onFocus={() => setPanel(null)}
                   multiline
                 />
               </View>
@@ -961,12 +1069,23 @@ export default function ChatScreen() {
                   {uploadingVoice ? (
                     <ActivityIndicator size="small" color={colors.brand} />
                   ) : (
-                    <Ionicons name="mic-outline" size={26} color={colors.onSurfaceSecondary} />
+                    <Ionicons name="mic-outline" size={24} color={colors.onSurfaceSecondary} />
                   )}
                 </Pressable>
               )}
             </View>
             <View style={styles.toolbarRow}>
+              <Pressable
+                testID="chat-add-btn"
+                onPress={() => setPanel((p) => (p === "attach" ? null : "attach"))}
+                style={styles.toolIcon}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={26}
+                  color={panel === "attach" ? colors.brand : colors.onSurface}
+                />
+              </Pressable>
               <Pressable
                 testID="chat-media-btn"
                 onPress={pickImage}
@@ -976,27 +1095,23 @@ export default function ChatScreen() {
                 {uploadingImage ? (
                   <ActivityIndicator size="small" color={colors.brand} />
                 ) : (
-                  <Ionicons name="add-circle-outline" size={26} color={colors.onSurface} />
+                  <Ionicons name="image-outline" size={24} color={colors.onSurface} />
                 )}
               </Pressable>
               <Pressable
-                testID="tool-image"
-                onPress={pickImage}
-                style={styles.toolIcon}
-                disabled={uploadingImage}
-              >
-                <Ionicons name="image-outline" size={24} color={colors.onSurface} />
-              </Pressable>
-              <Pressable
                 testID="tool-emoji"
-                onPress={() => setDraft((d) => d + "😊")}
+                onPress={() => setPanel((p) => (p === "emoji" ? null : "emoji"))}
                 style={styles.toolIcon}
               >
-                <Ionicons name="happy-outline" size={24} color={colors.onSurface} />
+                <Ionicons
+                  name="happy-outline"
+                  size={24}
+                  color={panel === "emoji" ? colors.brand : colors.onSurface}
+                />
               </Pressable>
               <Pressable
                 testID="tool-gift"
-                onPress={() => notify("Gifts", "Sending gifts is coming soon!")}
+                onPress={() => router.push("/market")}
                 style={styles.toolIcon}
               >
                 <Ionicons name="gift-outline" size={24} color={colors.onSurface} />
@@ -1011,10 +1126,14 @@ export default function ChatScreen() {
               </Pressable>
               <Pressable
                 testID="tool-templates"
-                onPress={() => notify("Quick replies", "Message templates are coming soon!")}
+                onPress={() => setPanel((p) => (p === "templates" ? null : "templates"))}
                 style={styles.toolIcon}
               >
-                <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.onSurface} />
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={24}
+                  color={panel === "templates" ? colors.brand : colors.onSurface}
+                />
               </Pressable>
             </View>
           </View>
@@ -1417,9 +1536,9 @@ const makeStyles = (colors: ThemeColors) =>
     inputPill: {
       flex: 1,
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 22,
+      borderRadius: 20,
       paddingHorizontal: spacing.lg,
-      minHeight: 42,
+      minHeight: 40,
       justifyContent: "center",
     },
     inlineActions: {
@@ -1437,6 +1556,68 @@ const makeStyles = (colors: ThemeColors) =>
       fontFamily: fonts.textBold,
       fontSize: 18,
       color: colors.onSurface,
+    },
+    emojiBar: {
+      maxHeight: 52,
+      marginBottom: spacing.sm,
+    },
+    emojiBarContent: {
+      alignItems: "center",
+      gap: spacing.xs,
+      paddingHorizontal: spacing.xs,
+    },
+    emojiItem: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceSecondary,
+    },
+    emojiText: {
+      fontSize: 22,
+    },
+    templatePanel: {
+      gap: spacing.xs,
+      marginBottom: spacing.sm,
+    },
+    templateItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+    },
+    templateText: {
+      flex: 1,
+      fontFamily: fonts.text,
+      fontSize: 14,
+      color: colors.onSurface,
+    },
+    attachPanel: {
+      flexDirection: "row",
+      gap: spacing.xl,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    attachItem: {
+      alignItems: "center",
+      gap: spacing.xs + 2,
+    },
+    attachIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    attachLabel: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
     },
     toolbarRow: {
       flexDirection: "row",
