@@ -9,7 +9,7 @@ import requests
 import sys
 
 # Base URL from frontend/.env EXPO_PUBLIC_BACKEND_URL
-BASE_URL = "https://ea1028c8-3797-44d1-86cd-cd550e15acbb.preview.emergentagent.com/api"
+BASE_URL = "https://design-system-update-10.preview.emergentagent.com/api"
 
 # Test credentials
 TEST_EMAIL = "fahad@lingua.app"
