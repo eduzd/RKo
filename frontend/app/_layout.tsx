@@ -18,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider } from "@/src/context/AuthContext";
 import { CallProvider } from "@/src/context/CallContext";
+import { NotificationsProvider } from "@/src/context/NotificationsContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 
@@ -27,10 +28,12 @@ function ThemedApp() {
   const { mode } = useTheme();
   return (
     <AuthProvider>
-      <CallProvider>
-        <StatusBar style={mode === "dark" ? "light" : "dark"} />
-        <Stack screenOptions={{ headerShown: false }} />
-      </CallProvider>
+      <NotificationsProvider>
+        <CallProvider>
+          <StatusBar style={mode === "dark" ? "light" : "dark"} />
+          <Stack screenOptions={{ headerShown: false }} />
+        </CallProvider>
+      </NotificationsProvider>
     </AuthProvider>
   );
 }

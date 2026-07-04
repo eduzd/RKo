@@ -45,7 +45,7 @@ const BG_GRADIENTS: [string, string][] = [
 ];
 
 const STAGE_SEATS = 8;
-const MAX_LISTENERS_SHOWN = 7;
+const MAX_LISTENERS_SHOWN = 6;
 
 export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,6 +61,7 @@ export default function RoomScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [handModalOpen, setHandModalOpen] = useState(false);
+  const [audienceModalOpen, setAudienceModalOpen] = useState(false);
   const [quickRepliesVisible, setQuickRepliesVisible] = useState(true);
   const [isFollowingHost, setIsFollowingHost] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
@@ -565,15 +566,7 @@ export default function RoomScreen() {
                     <Pressable
                       style={styles.listenerCell}
                       testID="room-listeners-more"
-                      onPress={() =>
-                        Alert.alert(
-                          "Audience",
-                          listeners
-                            .slice(MAX_LISTENERS_SHOWN)
-                            .map((m) => m.name)
-                            .join(", "),
-                        )
-                      }
+                      onPress={() => setAudienceModalOpen(true)}
                     >
                       <View style={styles.moreCircle}>
                         <Text style={styles.moreText}>+{extraListeners}</Text>
@@ -967,6 +960,48 @@ export default function RoomScreen() {
         </Modal>
 
         <Modal
+          visible={audienceModalOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setAudienceModalOpen(false)}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setAudienceModalOpen(false)}
+          >
+            <Pressable style={styles.menuSheet} onPress={() => {}}>
+              <Text style={styles.menuTitle}>Audience · {listeners.length}</Text>
+              <ScrollView style={{ maxHeight: 360 }}>
+                {listeners.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    testID={`audience-row-${m.id}`}
+                    style={styles.requestRow}
+                    onPress={() => {
+                      setAudienceModalOpen(false);
+                      onAvatarPress(m);
+                    }}
+                  >
+                    <Avatar
+                      name={m.name}
+                      url={m.avatar_url}
+                      size={36}
+                      flagCode={countryToCode(m.country)}
+                    />
+                    <Text style={styles.requestName} numberOfLines={1}>
+                      {m.id === user?.id ? "You" : m.name}
+                    </Text>
+                    {m.hand_raised && (
+                      <Ionicons name="hand-left" size={16} color="#FBBF24" />
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal
           visible={giftOpen}
           transparent
           animationType="slide"
@@ -1108,6 +1143,7 @@ const makeStyles = () =>
     },
     stage: {
       paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
       paddingBottom: spacing.md,
       gap: spacing.md,
     },
@@ -1194,13 +1230,13 @@ const makeStyles = () =>
     stageGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: spacing.md,
-      justifyContent: "flex-start",
+      justifyContent: "space-between",
+      rowGap: spacing.lg,
     },
     memberCell: {
       alignItems: "center",
-      gap: 4,
-      width: 68,
+      gap: 5,
+      width: 74,
     },
     micBadge: {
       position: "absolute",
@@ -1251,22 +1287,22 @@ const makeStyles = () =>
       flexDirection: "row",
       alignItems: "center",
       gap: 3,
-      maxWidth: 72,
+      maxWidth: 78,
     },
     memberName: {
       fontFamily: fonts.textSemi,
-      fontSize: 11,
+      fontSize: 11.5,
       color: "#FFFFFF",
-      maxWidth: 66,
+      maxWidth: 72,
     },
     emptySeat: {
       alignItems: "center",
-      width: 68,
+      width: 74,
     },
     emptySeatCircle: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 62,
+      height: 62,
+      borderRadius: 31,
       borderWidth: 1.5,
       borderColor: "rgba(255,255,255,0.25)",
       borderStyle: "dashed",
@@ -1276,30 +1312,31 @@ const makeStyles = () =>
     listenerRow: {
       flexDirection: "row",
       flexWrap: "wrap",
+      justifyContent: "center",
       gap: spacing.md,
     },
     listenerCell: {
       alignItems: "center",
       gap: 3,
-      width: 54,
+      width: 46,
     },
     listenerName: {
       fontFamily: fonts.text,
-      fontSize: 10.5,
+      fontSize: 10,
       color: "rgba(255,255,255,0.75)",
-      maxWidth: 54,
+      maxWidth: 46,
     },
     moreCircle: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       backgroundColor: "rgba(255,255,255,0.14)",
       alignItems: "center",
       justifyContent: "center",
     },
     moreText: {
       fontFamily: fonts.textBold,
-      fontSize: 12,
+      fontSize: 11,
       color: "#FFFFFF",
     },
     chatSection: {

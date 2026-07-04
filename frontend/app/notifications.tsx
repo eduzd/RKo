@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
 import { countryToCode } from "@/src/constants/countries";
+import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
 import { api, AppNotification } from "@/src/utils/api";
@@ -30,6 +31,7 @@ const TYPE_META: Record<
 export default function Notifications() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { markMomentsRead } = useNotifications();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,9 +42,9 @@ export default function Notifications() {
       .then((d) => setItems(d.notifications))
       .finally(() => {
         setLoading(false);
-        api.post("/notifications/read").catch(() => {});
+        markMomentsRead();
       });
-  }, []);
+  }, [markMomentsRead]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="notifications-screen">

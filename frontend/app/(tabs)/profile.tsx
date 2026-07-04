@@ -24,9 +24,10 @@ import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
+import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
-import { api, User } from "@/src/utils/api";
+import { api, User, Visitor } from "@/src/utils/api";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -50,12 +51,15 @@ const FEATURES: {
 export default function Profile() {
   const { user, setUser, logout } = useAuth();
   const { colors, mode, toggleMode } = useTheme();
+  const { markProfileRead } = useNotifications();
   const router = useRouter();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
+  const [recentVisitors, setRecentVisitors] = useState<Visitor[]>([]);
+  const [visitorsLocked, setVisitorsLocked] = useState(false);
   const [momentsCount, setMomentsCount] = useState<number | null>(null);
   const [privacy, setPrivacy] = useState<Record<string, boolean>>(
     user?.privacy || {},
@@ -67,9 +71,16 @@ export default function Profile() {
 
   useFocusEffect(
     useCallback(() => {
+      markProfileRead();
       api
-        .get<{ count: number }>("/users/me/visitors")
-        .then((d) => setVisitorCount(d.count))
+        .get<{ count: number; visitors: Visitor[]; vip_required: boolean }>(
+          "/users/me/visitors",
+        )
+        .then((d) => {
+          setVisitorCount(d.count);
+          setRecentVisitors(d.visitors.slice(0, 3));
+          setVisitorsLocked(d.vip_required);
+        })
         .catch(() => {});
       api
         .get<{ count: number }>("/moments/mine/count")
@@ -93,7 +104,7 @@ export default function Profile() {
           }
         })
         .catch(() => {});
-    }, [setUser]),
+    }, [setUser, markProfileRead]),
   );
 
   if (!user) return null;
@@ -331,6 +342,69 @@ export default function Profile() {
             </View>
           </Pressable>
         </View>
+
+        {/* Recent visitors avatar stack */}
+        {(recentVisitors.length > 0 || visitorsLocked) && (
+          <Pressable
+            testID="profile-recent-visitors"
+            style={styles.visitorsCard}
+            onPress={() => router.push("/visitors")}
+          >
+            <View style={styles.visitorsAvatarStack}>
+              {visitorsLocked
+                ? [0, 1, 2].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.visitorAvatarWrap,
+                        { marginLeft: i === 0 ? 0 : -14, zIndex: 3 - i },
+                      ]}
+                    >
+                      <View style={styles.visitorLockedCircle}>
+                        <Ionicons
+                          name="person"
+                          size={14}
+                          color={colors.onSurfaceSecondary}
+                        />
+                      </View>
+                    </View>
+                  ))
+                : recentVisitors.map((v, i) => (
+                    <View
+                      key={v.id}
+                      style={[
+                        styles.visitorAvatarWrap,
+                        { marginLeft: i === 0 ? 0 : -14, zIndex: 3 - i },
+                      ]}
+                    >
+                      <Avatar name={v.name} url={v.avatar_url} size={32} />
+                    </View>
+                  ))}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.visitorsTitle}>
+                {visitorsLocked
+                  ? "Someone viewed your profile"
+                  : `${recentVisitors.length} recent visitor${
+                      recentVisitors.length > 1 ? "s" : ""
+                    }`}
+              </Text>
+              <Text style={styles.visitorsSub} numberOfLines={1}>
+                {visitorsLocked
+                  ? "Upgrade to VIP to see who"
+                  : "Tap to see everyone who visited"}
+              </Text>
+            </View>
+            {visitorsLocked && (
+              <Ionicons name="lock-closed" size={15} color={colors.warning} />
+            )}
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colors.onSurfaceSecondary}
+            />
+          </Pressable>
+        )}
 
         {/* Moments */}
         <Pressable
@@ -850,6 +924,43 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: radius.lg,
       padding: spacing.lg,
       ...shadow.card,
+    },
+    visitorsCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      ...shadow.card,
+    },
+    visitorsAvatarStack: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    visitorAvatarWrap: {
+      borderRadius: 18,
+      borderWidth: 2,
+      borderColor: colors.surface,
+    },
+    visitorLockedCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceTertiary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    visitorsTitle: {
+      fontFamily: fonts.textBold,
+      fontSize: 14,
+      color: colors.onSurface,
+    },
+    visitorsSub: {
+      fontFamily: fonts.text,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
+      marginTop: 1,
     },
     momentsIcon: {
       width: 36,

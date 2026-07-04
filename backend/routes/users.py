@@ -192,6 +192,18 @@ async def toggle_follow(user_id: str, current_user: CurrentUser):
             }
         )
         following = True
+        await notifications_col.insert_one(
+            {
+                "_id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "actor_id": current_user["_id"],
+                "type": "follow",
+                "moment_id": None,
+                "text": None,
+                "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     followers_count = await follows_col.count_documents({"following_id": user_id})
     return {"following": following, "followers_count": followers_count}
 
@@ -357,7 +369,7 @@ async def get_user(user_id: str, current_user: CurrentUser):
     if not doc:
         raise HTTPException(status_code=404, detail="User not found")
     if user_id != current_user["_id"]:
-        await profile_visits_col.update_one(
+        visit_result = await profile_visits_col.update_one(
             {"visitor_id": current_user["_id"], "visited_user_id": user_id},
             {
                 "$set": {"visited_at": datetime.now(timezone.utc).isoformat()},
@@ -365,6 +377,20 @@ async def get_user(user_id: str, current_user: CurrentUser):
             },
             upsert=True,
         )
+        # Only notify on a *new* unique visitor, never on repeat views.
+        if visit_result.upserted_id:
+            await notifications_col.insert_one(
+                {
+                    "_id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "actor_id": current_user["_id"],
+                    "type": "visit",
+                    "moment_id": None,
+                    "text": None,
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
     public = user_public(doc)
     public.pop("email", None)
     public["is_online"] = manager.is_online(user_id)

@@ -27,6 +27,7 @@ import { LikersRow } from "@/src/components/LikersRow";
 import { RoomMomentCard } from "@/src/components/RoomMomentCard";
 import { countryToCode } from "@/src/constants/countries";
 import { useAuth } from "@/src/context/AuthContext";
+import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
 import { api, assetUrl, Moment } from "@/src/utils/api";
@@ -36,6 +37,7 @@ export default function Moments() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { momentsUnread, refresh: refreshNotifications } = useNotifications();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,6 @@ export default function Moments() {
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [photo, setPhoto] = useState<{ base64: string; uri: string; mime: string } | null>(null);
-  const [unread, setUnread] = useState(0);
   const [postTranslations, setPostTranslations] = useState<Record<string, string>>({});
   const [translatingPost, setTranslatingPost] = useState<string | null>(null);
 
@@ -88,11 +89,8 @@ export default function Moments() {
   useFocusEffect(
     useCallback(() => {
       load();
-      api
-        .get<{ unread: number }>("/notifications")
-        .then((d) => setUnread(d.unread))
-        .catch(() => {});
-    }, [load]),
+      refreshNotifications();
+    }, [load, refreshNotifications]),
   );
 
   const toggleLike = async (moment: Moment) => {
@@ -194,10 +192,10 @@ export default function Moments() {
           onPress={() => router.push("/notifications")}
         >
           <Ionicons name="notifications" size={22} color={colors.brand} />
-          {unread > 0 && (
+          {momentsUnread > 0 && (
             <View style={styles.bellBadge} testID="notifications-badge">
               <Text style={styles.bellBadgeText}>
-                {unread > 99 ? "99+" : unread}
+                {momentsUnread > 99 ? "99+" : momentsUnread}
               </Text>
             </View>
           )}

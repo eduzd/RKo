@@ -1,45 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
-import { Platform, StyleSheet } from "react-native";
+import React from "react";
+import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
-import { useChatSocket } from "@/src/hooks/use-chat-socket";
 import { fonts } from "@/src/theme";
-import { api, Conversation } from "@/src/utils/api";
 
 export default function TabsLayout() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [unread, setUnread] = useState(0);
+  const { chatUnread, momentsUnread, profileUnread } = useNotifications();
   // Reserve room for the device's home indicator / nav bar, but keep a
   // comfortable minimum gap so the bar never sits flush against the edge.
   const bottomGap = Math.max(insets.bottom, 12);
-
-  const loadUnread = useCallback(async () => {
-    try {
-      const convs = await api.get<Conversation[]>("/chats");
-      setUnread(convs.reduce((sum, c) => sum + (c.unread || 0), 0));
-    } catch {
-      // keep previous count
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUnread();
-    const t = setInterval(loadUnread, 12000);
-    return () => clearInterval(t);
-  }, [loadUnread]);
-
-  useChatSocket(
-    useCallback(
-      (event) => {
-        if (event.type === "new_message") loadUnread();
-      },
-      [loadUnread],
-    ),
-  );
 
   return (
     <Tabs
@@ -82,7 +57,8 @@ export default function TabsLayout() {
         options={{
           title: "Chats",
           tabBarButtonTestID: "tab-chats",
-          tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
+          tabBarBadge:
+            chatUnread > 0 ? (chatUnread > 99 ? "99+" : chatUnread) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.error,
             color: "#FFFFFF",
@@ -109,6 +85,18 @@ export default function TabsLayout() {
         options={{
           title: "Moments",
           tabBarButtonTestID: "tab-moments",
+          tabBarBadge:
+            momentsUnread > 0
+              ? momentsUnread > 99
+                ? "99+"
+                : momentsUnread
+              : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.error,
+            color: "#FFFFFF",
+            fontFamily: fonts.textBold,
+            fontSize: 10,
+          },
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="planet" size={size} color={color} />
           ),
@@ -130,10 +118,31 @@ export default function TabsLayout() {
           title: "Me",
           tabBarButtonTestID: "tab-profile",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <View>
+              <Ionicons name="person" size={size} color={color} />
+              {profileUnread > 0 && (
+                <View
+                  testID="profile-tab-dot"
+                  style={[styles.tabDot, { borderColor: colors.surface }]}
+                />
+              )}
+            </View>
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabDot: {
+    position: "absolute",
+    top: -2,
+    right: -3,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+  },
+});
