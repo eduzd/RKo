@@ -7,6 +7,7 @@ import React, {
 } from "react";
 
 import { api, setAuthToken, User } from "@/src/utils/api";
+import { registerForPush } from "@/src/utils/push";
 import { storage } from "@/src/utils/storage";
 
 const TOKEN_KEY = "auth_token";
@@ -36,6 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setAuthToken(token);
           const me = await api.get<User>("/auth/me");
           setUser(me);
+          registerForPush();
         }
       } catch {
         setAuthToken(null);
@@ -52,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setAuthToken(resp.token);
       await storage.secureSet(TOKEN_KEY, resp.token);
       setUser(resp.user);
+      registerForPush();
     },
     [],
   );

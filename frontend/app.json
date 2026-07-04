@@ -23,6 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.communityspeak.z97eev",
+      "googleServicesFile": "./google-services.json",
       "permissions": ["READ_MEDIA_IMAGES", "RECORD_AUDIO"]
     },
     "web": {
@@ -43,6 +44,7 @@
       ],
       "expo-font",
       "expo-audio",
+      "expo-notifications",
       [
         "@config-plugins/react-native-webrtc",
         {

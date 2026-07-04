@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,11 @@ import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
 import { api, User, Visitor } from "@/src/utils/api";
+import {
+  getPushPermissionStatus,
+  PushPermissionStatus,
+  requestPushPermissionFromSettings,
+} from "@/src/utils/push";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -56,6 +61,7 @@ export default function Profile() {
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushPermissionStatus>("undetermined");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [recentVisitors, setRecentVisitors] = useState<Visitor[]>([]);
@@ -106,6 +112,19 @@ export default function Profile() {
         .catch(() => {});
     }, [setUser, markProfileRead]),
   );
+
+  const refreshPushStatus = useCallback(() => {
+    getPushPermissionStatus().then(setPushStatus).catch(() => {});
+  }, []);
+
+  const enableNotifications = async () => {
+    const status = await requestPushPermissionFromSettings();
+    setPushStatus(status);
+  };
+
+  useEffect(() => {
+    if (settingsOpen) refreshPushStatus();
+  }, [settingsOpen, refreshPushStatus]);
 
   if (!user) return null;
 
@@ -621,6 +640,41 @@ export default function Profile() {
                   </Pressable>
                 </View>
               </View>
+            </View>
+
+            <Text style={styles.groupLabel}>Notifications</Text>
+            <View style={styles.section}>
+              <Pressable
+                testID="settings-push-notifications"
+                style={styles.settingRow}
+                onPress={enableNotifications}
+                disabled={pushStatus === "granted" || pushStatus === "unsupported"}
+              >
+                <View style={styles.settingIcon}>
+                  <Ionicons name="notifications" size={18} color={colors.brand} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingTitle}>Push notifications</Text>
+                  <Text style={styles.settingSub}>
+                    {pushStatus === "granted"
+                      ? "On — messages, followers & moment activity"
+                      : pushStatus === "unsupported"
+                        ? "Not available in this preview"
+                        : pushStatus === "denied"
+                          ? "Off — tap to enable in Settings"
+                          : "Off — tap to enable"}
+                  </Text>
+                </View>
+                {pushStatus === "granted" ? (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                ) : pushStatus !== "unsupported" ? (
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={colors.onSurfaceSecondary}
+                  />
+                ) : null}
+              </Pressable>
             </View>
 
             <Text style={styles.groupLabel}>Privacy</Text>

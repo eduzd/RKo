@@ -1,4 +1,6 @@
+import base64
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +21,22 @@ from routes.market import CATALOG
 from ws_manager import manager
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# /app/backend/routes/admin.py -> parents: routes, backend, app (root)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_FRONTEND_DIR = _REPO_ROOT / "frontend"
+
+# Registry of build-time integration config files that can be managed from
+# the Admin Console instead of being handed to the dev agent in chat. Add
+# new entries here whenever a future integration needs an uploaded file
+# (e.g. an iOS `GoogleService-Info.plist`).
+INTEGRATION_FILES: dict[str, dict] = {
+    "google_services_json": {
+        "label": "google-services.json",
+        "description": "Firebase config for Android push notifications (FCM). Re-upload here any time the Firebase project changes — no code changes needed.",
+        "path": _FRONTEND_DIR / "google-services.json",
+    },
+}
 
 
 async def require_admin(current_user: Annotated[dict, Depends(get_current_user)]) -> dict:
@@ -266,3 +284,59 @@ async def update_config(body: ConfigUpdate, admin: AdminUser):
     if updates:
         await config_col.update_one({"_id": "app"}, {"$set": updates}, upsert=True)
     return await get_app_config()
+
+
+def _integration_file_status(file_id: str) -> dict:
+    meta = INTEGRATION_FILES[file_id]
+    path: Path = meta["path"]
+    exists = path.exists()
+    return {
+        "id": file_id,
+        "label": meta["label"],
+        "description": meta["description"],
+        "exists": exists,
+        "updated_at": (
+            datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+            if exists
+            else None
+        ),
+    }
+
+
+@router.get("/integration-files")
+async def list_integration_files(admin: AdminUser):
+    """Build-time integration config files (e.g. Firebase google-services.json)
+    that admins can upload/replace without a code change."""
+    return [_integration_file_status(fid) for fid in INTEGRATION_FILES]
+
+
+class IntegrationFileUpload(BaseModel):
+    content_base64: str
+
+
+@router.post("/integration-files/{file_id}")
+async def upload_integration_file(
+    file_id: str, body: IntegrationFileUpload, admin: AdminUser
+):
+    if file_id not in INTEGRATION_FILES:
+        raise HTTPException(status_code=404, detail="Unknown integration file")
+    try:
+        raw = base64.b64decode(body.content_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file data")
+    if len(raw) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 2MB)")
+    path: Path = INTEGRATION_FILES[file_id]["path"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(raw)
+    return _integration_file_status(file_id)
+
+
+@router.delete("/integration-files/{file_id}")
+async def remove_integration_file(file_id: str, admin: AdminUser):
+    if file_id not in INTEGRATION_FILES:
+        raise HTTPException(status_code=404, detail="Unknown integration file")
+    path: Path = INTEGRATION_FILES[file_id]["path"]
+    if path.exists():
+        path.unlink()
+    return _integration_file_status(file_id)

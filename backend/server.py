@@ -23,6 +23,7 @@ from routes.market import router as market_router  # noqa: E402
 from routes.moments import router as moments_router  # noqa: E402
 from routes.notifications import router as notifications_router  # noqa: E402
 from routes.admin import router as admin_router  # noqa: E402
+from routes.push import router as push_router  # noqa: E402
 from routes.rooms import router as rooms_router  # noqa: E402
 from routes.users import router as users_router  # noqa: E402
 from ws_manager import manager  # noqa: E402
@@ -158,6 +159,7 @@ for router in (
     notifications_router,
     market_router,
     admin_router,
+    push_router,
 ):
     app.include_router(router, prefix="/api")
 

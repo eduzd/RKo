@@ -1,4 +1,5 @@
 import base64
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -16,9 +17,24 @@ from models import (
     apply_privacy,
     user_card,
 )
+from routes.push import send_push
 from ws_manager import manager
 
 router = APIRouter(prefix="/chats", tags=["chats"])
+logger = logging.getLogger(__name__)
+
+
+async def _push_new_message(partner_id: str, muted: bool, sender_name: str, preview: str) -> None:
+    """Best-effort push for a new chat message — never blocks message delivery."""
+    if muted:
+        return
+    try:
+        await send_push(
+            recipients=[partner_id],
+            data={"title": sender_name, "message": preview[:120]},
+        )
+    except Exception as e:
+        logger.warning(f"Push notification failed (non-blocking): {e}")
 
 
 def message_public(doc: dict) -> dict:
@@ -218,6 +234,12 @@ async def send_message(conversation_id: str, body: MessageCreate, current_user: 
             "sender": user_card(current_user),
         },
     )
+    await _push_new_message(
+        partner_id,
+        bool(conv.get("muted", {}).get(partner_id)),
+        current_user.get("name") or "New message",
+        body.text,
+    )
     return msg
 
 
@@ -290,6 +312,12 @@ async def send_voice_message(
             "sender": user_card(current_user),
         },
     )
+    await _push_new_message(
+        partner_id,
+        bool(conv.get("muted", {}).get(partner_id)),
+        current_user.get("name") or "New message",
+        "🎤 Voice message",
+    )
     return msg
 
 
@@ -336,6 +364,12 @@ async def send_image_message(
             "message": msg,
             "sender": user_card(current_user),
         },
+    )
+    await _push_new_message(
+        partner_id,
+        bool(conv.get("muted", {}).get(partner_id)),
+        current_user.get("name") or "New message",
+        "📷 Photo",
     )
     return msg
 

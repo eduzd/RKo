@@ -1,4 +1,5 @@
 import base64
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -7,9 +8,17 @@ from fastapi import APIRouter, HTTPException
 from auth_utils import CurrentUser
 from db import comments_col, media_col, moments_col, notifications_col, rooms_col, users_col
 from models import CommentCreate, MomentCreate, apply_privacy, user_card
+from routes.push import send_push
 from ws_manager import manager
 
 router = APIRouter(prefix="/moments", tags=["moments"])
+logger = logging.getLogger(__name__)
+
+_PUSH_LABEL = {
+    "like": "liked your moment",
+    "comment": "commented on your moment",
+    "reply": "replied to your comment",
+}
 
 
 async def _notify(
@@ -19,7 +28,8 @@ async def _notify(
     moment_id: str,
     text: str | None = None,
 ):
-    """Store an in-app notification (like / comment / reply)."""
+    """Store an in-app notification (like / comment / reply) and best-effort
+    push it — a push failure must never block the like/comment action."""
     if recipient_id == actor_id:
         return
     await notifications_col.insert_one(
@@ -34,6 +44,18 @@ async def _notify(
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
     )
+    try:
+        actor = await users_col.find_one({"_id": actor_id})
+        actor_name = actor.get("name") if actor else "Someone"
+        message = f"{actor_name} {_PUSH_LABEL.get(ntype, 'interacted with your moment')}"
+        if text:
+            message += f': "{text[:80]}"'
+        await send_push(
+            recipients=[recipient_id],
+            data={"title": actor_name, "message": message},
+        )
+    except Exception as e:
+        logger.warning(f"Push notification failed (non-blocking): {e}")
 
 
 def _card_with_presence(author: dict | None) -> dict | None:

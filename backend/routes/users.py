@@ -1,4 +1,5 @@
 import base64
+import logging
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -7,11 +8,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from auth_utils import CurrentUser
-from db import follows_col, media_col, profile_visits_col, users_col
+from db import follows_col, media_col, notifications_col, profile_visits_col, users_col
 from models import AvatarUpload, UserUpdate, _vip_active, apply_privacy, user_card, user_public
+from routes.push import send_push
 from ws_manager import manager
 
 router = APIRouter(prefix="/users", tags=["users"])
+logger = logging.getLogger(__name__)
 
 
 @router.put("/me")
@@ -204,6 +207,16 @@ async def toggle_follow(user_id: str, current_user: CurrentUser):
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        try:
+            await send_push(
+                recipients=[user_id],
+                data={
+                    "title": current_user.get("name") or "New follower",
+                    "message": f"{current_user.get('name') or 'Someone'} started following you",
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Push notification failed (non-blocking): {e}")
     followers_count = await follows_col.count_documents({"following_id": user_id})
     return {"following": following, "followers_count": followers_count}
 
@@ -391,6 +404,16 @@ async def get_user(user_id: str, current_user: CurrentUser):
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            try:
+                await send_push(
+                    recipients=[user_id],
+                    data={
+                        "title": "New profile visitor",
+                        "message": f"{current_user.get('name') or 'Someone'} viewed your profile",
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Push notification failed (non-blocking): {e}")
     public = user_public(doc)
     public.pop("email", None)
     public["is_online"] = manager.is_online(user_id)

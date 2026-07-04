@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -81,7 +83,15 @@ interface AdminMoment {
   created_at?: string;
 }
 
-const TABS = ["Overview", "Users", "Market", "Moments", "Settings"] as const;
+interface IntegrationFile {
+  id: string;
+  label: string;
+  description: string;
+  exists: boolean;
+  updated_at: string | null;
+}
+
+const TABS = ["Overview", "Users", "Market", "Moments", "Integrations", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPanel() {
@@ -196,6 +206,7 @@ export default function AdminPanel() {
       {tab === "Users" && <Users />}
       {tab === "Market" && <Market />}
       {tab === "Moments" && <Moments />}
+      {tab === "Integrations" && <Integrations />}
       {tab === "Settings" && <Settings />}
     </SafeAreaView>
   );
@@ -500,6 +511,124 @@ function Moments() {
               color={DANGER}
               onPress={() => remove(m)}
             />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+function Integrations() {
+  const [files, setFiles] = useState<IntegrationFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api
+      .get<IntegrationFile[]>("/admin/integration-files")
+      .then(setFiles)
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  const upload = async (file: IntegrationFile) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["application/json", "*/*"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setBusyId(file.id);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const updated = await api.post<IntegrationFile>(
+        `/admin/integration-files/${file.id}`,
+        { content_base64: base64 },
+      );
+      setFiles((prev) => prev.map((f) => (f.id === file.id ? updated : f)));
+      Alert.alert(
+        "Uploaded",
+        "Saved. Click Publish (top right) and generate a new build for this to take effect on real devices.",
+      );
+    } catch (e) {
+      Alert.alert("Upload failed", e instanceof Error ? e.message : "Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = (file: IntegrationFile) =>
+    confirmAction(`Remove ${file.label}?`, async () => {
+      const updated = await api.delete<IntegrationFile>(
+        `/admin/integration-files/${file.id}`,
+      );
+      setFiles((prev) => prev.map((f) => (f.id === file.id ? updated : f)));
+    });
+
+  if (loading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={BRAND} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
+      testID="admin-integrations"
+    >
+      <Text style={{ color: "#94A3B8", fontSize: 13 }}>
+        Upload the config files 3rd-party integrations need — directly
+        here, no code change needed. After uploading, click Publish (top
+        right) and generate a new build for native changes to take effect.
+      </Text>
+      {files.map((f) => (
+        <View key={f.id} style={s.userCard} testID={`admin-integration-${f.id}`}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons
+              name={f.exists ? "checkmark-circle" : "alert-circle"}
+              size={20}
+              color={f.exists ? OK : GOLD}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={s.userName}>{f.label}</Text>
+              <Text style={s.userMeta}>
+                {f.exists
+                  ? `Configured${
+                      f.updated_at
+                        ? " · updated " + new Date(f.updated_at).toLocaleString()
+                        : ""
+                    }`
+                  : "Not uploaded yet"}
+              </Text>
+            </View>
+          </View>
+          <Text style={{ color: "#CBD5E1", fontSize: 12.5 }}>{f.description}</Text>
+          <View style={s.userActions}>
+            <ActionBtn
+              testID={`admin-integration-upload-${f.id}`}
+              label={
+                busyId === f.id
+                  ? "Uploading…"
+                  : f.exists
+                    ? "Replace file"
+                    : "Upload file"
+              }
+              color={BRAND}
+              onPress={() => upload(f)}
+            />
+            {f.exists && (
+              <ActionBtn
+                testID={`admin-integration-remove-${f.id}`}
+                label="Remove"
+                color={DANGER}
+                onPress={() => remove(f)}
+              />
+            )}
           </View>
         </View>
       ))}
