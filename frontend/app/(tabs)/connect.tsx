@@ -262,7 +262,7 @@ export default function Connect() {
           style={styles.waveBtn}
           onPress={() => openChat(item)}
         >
-          <Ionicons name="paper-plane" size={17} color="#FFFFFF" />
+          <Ionicons name="chatbubble" size={19} color="#FFFFFF" />
         </Pressable>
       </Pressable>
     );
@@ -457,7 +457,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.xl,
       paddingTop: spacing.sm,
       paddingBottom: spacing.sm,
     },
@@ -649,10 +649,10 @@ const makeStyles = (colors: ThemeColors) =>
       color: "#EA580C",
     },
     waveBtn: {
-      width: 48,
+      width: 40,
       height: 40,
-      borderRadius: radius.pill,
-      backgroundColor: "#6D5AE8",
+      borderRadius: 20,
+      backgroundColor: colors.brand,
       alignItems: "center",
       justifyContent: "center",
     },

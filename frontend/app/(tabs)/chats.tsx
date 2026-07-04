@@ -149,7 +149,7 @@ export default function Chats() {
     <SafeAreaView style={styles.container} edges={["top"]} testID="chats-screen">
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chat</Text>
+        <Text style={styles.headerTitle}>Chats</Text>
         <Pressable
           testID="chats-add-btn"
           style={styles.headerIconBtn}
@@ -277,7 +277,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.sm,
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.xl,
       paddingTop: spacing.xs,
       paddingBottom: spacing.sm,
     },
