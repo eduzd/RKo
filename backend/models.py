@@ -29,6 +29,8 @@ class UserUpdate(BaseModel):
     interests: Optional[list[str]] = Field(default=None, max_length=20)
     gender: Optional[str] = Field(default=None, pattern="^(male|female)$")
     privacy: Optional[dict] = None
+    # Per-language proficiency, e.g. {"es": "Intermediate", "fr": "Beginner"}
+    proficiencies: Optional[dict[str, str]] = None
     # Extended HelloTalk-style profile fields (all optional)
     places_to_go: Optional[str] = Field(default=None, max_length=120)
     mbti: Optional[str] = Field(default=None, max_length=8)
@@ -161,6 +163,7 @@ def user_public(doc: dict) -> dict:
         "native_language": doc.get("native_language"),
         "learning_language": doc.get("learning_language"),
         "proficiency": doc.get("proficiency"),
+        "proficiencies": doc.get("proficiencies") or {},
         "teach_languages": doc.get("teach_languages") or [],
         "learning_languages": _learning_list(doc),
         "age": doc.get("age"),
@@ -199,6 +202,7 @@ def user_card(doc: dict) -> dict:
         "native_language": doc.get("native_language"),
         "learning_language": doc.get("learning_language"),
         "proficiency": doc.get("proficiency"),
+        "proficiencies": doc.get("proficiencies") or {},
         "teach_languages": doc.get("teach_languages") or [],
         "learning_languages": _learning_list(doc),
         "age": doc.get("age"),

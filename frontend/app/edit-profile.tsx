@@ -24,7 +24,9 @@ import { Avatar } from "@/src/components/Avatar";
 import { INTERESTS, MAX_INTERESTS } from "@/src/constants/interests";
 import {
   LANGUAGES,
+  langFlag,
   langName,
+  PROFICIENCY_LEVELS,
 } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
@@ -113,6 +115,7 @@ export default function EditProfile() {
   const [draftArr, setDraftArr] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [savingLevelFor, setSavingLevelFor] = useState<string | null>(null);
 
   const persist = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -360,6 +363,56 @@ export default function EditProfile() {
 
   const zodiac = zodiacFor(user.birthday);
 
+  const setLangLevel = async (code: string, level: string) => {
+    setSavingLevelFor(code);
+    try {
+      await persist({ proficiencies: { [code]: level } });
+    } catch {
+      // ignore, keep previous value
+    } finally {
+      setSavingLevelFor(null);
+    }
+  };
+
+  const LangLevelRow = ({ code, last }: { code: string; last?: boolean }) => {
+    const level = user.proficiencies?.[code];
+    const idx = level ? PROFICIENCY_LEVELS.indexOf(level) : -1;
+    const filled = idx >= 0 ? idx + 1 : 0;
+    return (
+      <View style={[styles.levelRow, !last && styles.rowBorder]}>
+        <View style={styles.levelLabelCol}>
+          <Text style={styles.levelFlag}>{langFlag(code)}</Text>
+          <Text style={styles.levelLangName}>{langName(code)}</Text>
+        </View>
+        <View style={styles.levelRight}>
+          {savingLevelFor === code ? (
+            <ActivityIndicator size="small" color={colors.brand} />
+          ) : (
+            <>
+              <View style={styles.levelDotsRow}>
+                {PROFICIENCY_LEVELS.map((lvl, i) => (
+                  <Pressable
+                    key={lvl}
+                    testID={`edit-level-dot-${code}-${i}`}
+                    hitSlop={6}
+                    onPress={() => setLangLevel(code, lvl)}
+                    style={[
+                      styles.levelDot,
+                      i < filled && styles.levelDotFilled,
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={styles.levelText} numberOfLines={1}>
+                {level || "Set level"}
+              </Text>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   const Row = ({
     icon,
     iconColor,
@@ -560,6 +613,22 @@ export default function EditProfile() {
             last
           />
         </View>
+
+        {/* Proficiency levels per learning language */}
+        {learningLangs.length > 0 && (
+          <>
+            <Text style={styles.sectionHeader}>Proficiency</Text>
+            <View style={styles.card}>
+              {learningLangs.map((code, i) => (
+                <LangLevelRow
+                  key={code}
+                  code={code}
+                  last={i === learningLangs.length - 1}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
         {/* VIP banner */}
         <Pressable
@@ -1020,6 +1089,52 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.success,
       marginTop: 4,
     },
+    levelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.md,
+      minHeight: 56,
+    },
+    levelLabelCol: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    levelFlag: {
+      fontSize: 18,
+    },
+    levelLangName: {
+      fontFamily: fonts.textSemi,
+      fontSize: 14,
+      color: colors.onSurface,
+    },
+    levelRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    levelDotsRow: {
+      flexDirection: "row",
+      gap: 4,
+    },
+    levelDot: {
+      width: 9,
+      height: 9,
+      borderRadius: 4.5,
+      backgroundColor: colors.surfaceTertiary,
+    },
+    levelDotFilled: {
+      backgroundColor: colors.brand,
+    },
+    levelText: {
+      fontFamily: fonts.text,
+      fontSize: 11.5,
+      color: colors.onSurfaceSecondary,
+      minWidth: 62,
+      textAlign: "right",
+    },
+
     rowDot: {
       width: 8,
       height: 8,

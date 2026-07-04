@@ -22,6 +22,12 @@ async def update_me(body: UserUpdate, current_user: CurrentUser):
         updates.pop("country")
     if current_user.get("age") and "age" in updates:
         updates.pop("age")
+    # Per-language proficiency is merged (not overwritten) so setting one
+    # language's level never wipes out levels already set for others.
+    if "proficiencies" in updates:
+        merged = dict(current_user.get("proficiencies") or {})
+        merged.update(updates["proficiencies"])
+        updates["proficiencies"] = merged
     # Non-VIP users: 1 native + 1 learning language only (no extra teach languages).
     if not current_user.get("is_vip"):
         if updates.get("learning_languages") is not None:
@@ -240,12 +246,12 @@ async def list_partners(
             else []
         )
         my_teach = [
-            l
-            for l in [
+            lg
+            for lg in [
                 current_user.get("native_language"),
                 *(current_user.get("teach_languages") or []),
             ]
-            if l
+            if lg
         ]
         ors = []
         if my_learning:

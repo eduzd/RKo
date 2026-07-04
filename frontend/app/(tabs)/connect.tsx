@@ -139,7 +139,6 @@ export default function Connect() {
       </View>
     );
   };
-
   const renderCard = ({ item }: { item: User }) => {
     const learning = (
       item.learning_languages?.length
@@ -212,14 +211,18 @@ export default function Connect() {
             </View>
             <Ionicons
               name="swap-horizontal"
-              size={15}
+              size={13}
               color={colors.onSurfaceSecondary}
-              style={{ marginHorizontal: 6 }}
+              style={{ marginHorizontal: 5 }}
             />
             {learning.map((c, i) => (
               <View key={c} style={[styles.langItem, { marginRight: spacing.sm }]}>
                 <Text style={styles.langCode}>{c.toUpperCase()}</Text>
-                {i === 0 ? <ProfDots level={item.proficiency} /> : null}
+                <ProfDots
+                  level={
+                    item.proficiencies?.[c] || (i === 0 ? item.proficiency : null)
+                  }
+                />
               </View>
             ))}
           </View>
@@ -259,7 +262,7 @@ export default function Connect() {
           style={styles.waveBtn}
           onPress={() => openChat(item)}
         >
-          <Ionicons name="chatbubble-ellipses" size={18} color="#FFFFFF" />
+          <Ionicons name="paper-plane" size={17} color="#FFFFFF" />
         </Pressable>
       </Pressable>
     );
@@ -269,31 +272,14 @@ export default function Connect() {
     <SafeAreaView style={styles.container} edges={["top"]} testID="connect-screen">
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
-          testID="connect-vip-badge"
-          style={styles.vipChip}
-          onPress={() => router.push("/market")}
-        >
-          <View style={styles.vipUpgradeTag}>
-            <Text style={styles.vipUpgradeText}>Upgrade</Text>
-          </View>
-          <Text style={styles.vipChipText}>VIP</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Find Partners</Text>
+        <Text style={styles.headerTitle}>Connect</Text>
         <View style={styles.headerActions}>
-          <Pressable
-            testID="connect-boost-btn"
-            style={styles.headerIconBtn}
-            onPress={() => router.push("/market")}
-          >
-            <Ionicons name="flash" size={20} color="#EC4899" />
-          </Pressable>
           <Pressable
             testID="connect-filter-btn"
             style={styles.headerIconBtn}
             onPress={() => router.push("/search")}
           >
-            <Ionicons name="options" size={20} color={colors.onSurface} />
+            <Ionicons name="options-outline" size={19} color={colors.brand} />
           </Pressable>
         </View>
       </View>
@@ -475,35 +461,9 @@ const makeStyles = (colors: ThemeColors) =>
       paddingTop: spacing.sm,
       paddingBottom: spacing.sm,
     },
-    vipChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      backgroundColor: "#F59E0B",
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.sm + 2,
-      paddingVertical: 5,
-    },
-    vipUpgradeTag: {
-      backgroundColor: "#EC4899",
-      borderRadius: radius.pill,
-      paddingHorizontal: 6,
-      paddingVertical: 1,
-    },
-    vipUpgradeText: {
-      fontFamily: fonts.textBold,
-      fontSize: 9,
-      color: "#FFFFFF",
-    },
-    vipChipText: {
-      fontFamily: fonts.textBold,
-      fontSize: 14,
-      color: "#FFFFFF",
-      fontStyle: "italic",
-    },
     headerTitle: {
       fontFamily: fonts.display,
-      fontSize: 18,
+      fontSize: 22,
       color: colors.onSurface,
     },
     headerActions: {
@@ -512,11 +472,12 @@ const makeStyles = (colors: ThemeColors) =>
       gap: spacing.xs,
     },
     headerIconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: colors.surfaceSecondary,
     },
     catRow: {
       gap: spacing.lg,
@@ -628,7 +589,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     langCode: {
       fontFamily: fonts.textBold,
-      fontSize: 12,
+      fontSize: 10.5,
       color: colors.onSurface,
     },
     langBar: {

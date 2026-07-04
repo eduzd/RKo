@@ -149,30 +149,13 @@ export default function Chats() {
     <SafeAreaView style={styles.container} edges={["top"]} testID="chats-screen">
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
-          testID="chats-menu-btn"
-          style={styles.headerIconBtn}
-          onPress={() => router.push("/(tabs)/profile")}
-        >
-          <Ionicons name="menu" size={24} color={colors.onSurface} />
-        </Pressable>
-        <Pressable
-          testID="chats-vip-badge"
-          style={styles.vipChip}
-          onPress={() => router.push("/market")}
-        >
-          <View style={styles.vipUpgradeTag}>
-            <Text style={styles.vipUpgradeText}>Upgrade</Text>
-          </View>
-          <Text style={styles.vipChipText}>VIP</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Language Talks</Text>
+        <Text style={styles.headerTitle}>Chat</Text>
         <Pressable
           testID="chats-add-btn"
           style={styles.headerIconBtn}
           onPress={() => router.push("/(tabs)/connect")}
         >
-          <Ionicons name="add" size={24} color={colors.onSurface} />
+          <Ionicons name="add" size={22} color="#FFFFFF" />
         </Pressable>
       </View>
 
@@ -299,43 +282,18 @@ const makeStyles = (colors: ThemeColors) =>
       paddingBottom: spacing.sm,
     },
     headerIconBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: "center",
       justifyContent: "center",
-    },
-    vipChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      backgroundColor: "#F59E0B",
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.sm + 2,
-      paddingVertical: 5,
-    },
-    vipUpgradeTag: {
-      backgroundColor: "#EC4899",
-      borderRadius: radius.pill,
-      paddingHorizontal: 6,
-      paddingVertical: 1,
-    },
-    vipUpgradeText: {
-      fontFamily: fonts.textBold,
-      fontSize: 9,
-      color: "#FFFFFF",
-    },
-    vipChipText: {
-      fontFamily: fonts.textBold,
-      fontSize: 14,
-      color: "#FFFFFF",
-      fontStyle: "italic",
+      backgroundColor: colors.brand,
     },
     headerTitle: {
       flex: 1,
-      textAlign: "center",
+      textAlign: "left",
       fontFamily: fonts.display,
-      fontSize: 19,
+      fontSize: 22,
       color: colors.onSurface,
     },
     shortcutRow: {

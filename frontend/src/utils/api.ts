@@ -54,6 +54,7 @@ export interface User {
   native_language?: string | null;
   learning_language?: string | null;
   proficiency?: string | null;
+  proficiencies?: Record<string, string>;
   teach_languages?: string[];
   learning_languages?: string[];
   age?: number | null;
@@ -166,24 +167,40 @@ export interface RoomMember extends User {
   hand_raised: boolean;
 }
 
+export interface TopGifter extends User {
+  coins: number;
+}
+
 export interface Room {
   id: string;
   title: string;
   language: string;
   languages?: string[];
   host: User | null;
+  host_level?: number;
   is_live?: boolean;
   members?: RoomMember[];
   member_count: number;
+  chat_muted?: boolean;
+  top_gifters?: TopGifter[];
   created_at: string;
 }
 
 export interface RoomMessage {
   id: string;
   room_id: string;
-  sender: User;
+  sender: User | null;
   text: string;
+  type?: "text" | "system" | "gift";
+  gift?: { emoji: string; name: string; to: string } | null;
   created_at: string;
+}
+
+export interface RoomGift {
+  id: string;
+  emoji: string;
+  name: string;
+  price: number;
 }
 
 export const audioUrl = (audioId: string): string =>
