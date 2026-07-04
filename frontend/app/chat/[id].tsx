@@ -10,6 +10,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import dayjs from "dayjs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -48,6 +49,38 @@ const notify = (title: string, message: string) => {
   }
 };
 
+const zodiacFor = (birthday?: string | null): string => {
+  if (!birthday) return "";
+  const parts = birthday.split("-");
+  if (parts.length < 3) return "";
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  if (!m || !d) return "";
+  const table: [string, number, number][] = [
+    ["Capricorn", 1, 19], ["Aquarius", 2, 18], ["Pisces", 3, 20],
+    ["Aries", 4, 19], ["Taurus", 5, 20], ["Gemini", 6, 20],
+    ["Cancer", 7, 22], ["Leo", 8, 22], ["Virgo", 9, 22],
+    ["Libra", 10, 22], ["Scorpio", 11, 21], ["Sagittarius", 12, 21],
+    ["Capricorn", 12, 31],
+  ];
+  const [name, , maxDay] = table[m - 1];
+  return d <= maxDay ? name : table[m % 12][0];
+};
+
+const dateSeparator = (iso: string): string => {
+  const d = dayjs(iso);
+  const now = dayjs();
+  const t = d.format("HH:mm");
+  if (d.isSame(now, "day")) return `Today ${t}`;
+  if (d.isSame(now.subtract(1, "day"), "day")) return `Yesterday ${t}`;
+  return `${d.format("MMM D")} ${t}`;
+};
+
+const sameDay = (a?: string, b?: string): boolean =>
+  !!a && !!b && dayjs(a).isSame(dayjs(b), "day");
+
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -56,6 +89,7 @@ export default function ChatScreen() {
   const { startCall } = useCall();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [fullPartner, setFullPartner] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -77,21 +111,35 @@ export default function ChatScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
+    if (!user) return;
+    let active = true;
     const load = async () => {
       try {
         const [conv, msgs] = await Promise.all([
           api.get<Conversation>(`/chats/${id}`),
           api.get<Message[]>(`/chats/${id}/messages`),
         ]);
+        if (!active) return;
         setConversation(conv);
         setMessages(msgs);
+        if (conv?.partner?.id) {
+          api
+            .get<User>(`/users/${conv.partner.id}`)
+            .then((p) => active && setFullPartner(p))
+            .catch(() => {});
+        }
         api.post(`/chats/${id}/read`).catch(() => {});
+      } catch {
+        // auth not ready or network error — will retry on next focus
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     load();
-  }, [id]);
+    return () => {
+      active = false;
+    };
+  }, [id, user]);
 
   useChatSocket(
     useCallback(
@@ -436,11 +484,88 @@ export default function ChatScreen() {
     ]);
   };
 
+  const info = fullPartner || partner;
+  const chips: { icon?: IconName; iconColor?: string; label: string }[] = [];
+  if (info) {
+    const z = zodiacFor(info.birthday);
+    if (z) chips.push({ icon: "planet", iconColor: "#8B5CF6", label: z });
+    if (info.blood_type)
+      chips.push({ icon: "water", iconColor: "#EF4444", label: info.blood_type });
+    if (info.mbti) chips.push({ label: info.mbti });
+    (info.interests || []).slice(0, 6).forEach((i) => chips.push({ label: i }));
+    if (info.hometown) chips.push({ label: info.hometown });
+    if (info.places_to_go) chips.push({ label: info.places_to_go });
+  }
+
+  const partnerCard = partner ? (
+    <Pressable
+      testID="chat-intro-card"
+      style={styles.partnerCard}
+      onPress={() => router.push(`/user/${partner.id}`)}
+    >
+      <View style={styles.partnerTop}>
+        <Avatar
+          name={partner.name}
+          url={partner.avatar_url}
+          size={56}
+          flagCode={countryToCode(partner.country)}
+          online={partner.is_online}
+        />
+        <View style={{ flex: 1 }}>
+          <View style={styles.partnerNameRow}>
+            <Text style={styles.partnerName} numberOfLines={1}>
+              {partner.name}
+            </Text>
+            {partner.gender ? (
+              <View
+                style={[
+                  styles.genderPill,
+                  { backgroundColor: partner.gender === "female" ? "#EC4899" : "#3B82F6" },
+                ]}
+              >
+                <Ionicons
+                  name={partner.gender === "female" ? "female" : "male"}
+                  size={11}
+                  color="#FFFFFF"
+                />
+                {partner.age ? (
+                  <Text style={styles.genderPillText}>{partner.age}</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.partnerSub}>
+            Native {langName(partner.native_language)} · Learning{" "}
+            {langName(partner.learning_language)}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceSecondary} />
+      </View>
+      {partner.bio ? (
+        <Text style={styles.partnerBio} numberOfLines={2}>
+          {partner.bio}
+        </Text>
+      ) : null}
+      {chips.length > 0 ? (
+        <View style={styles.chipsWrap}>
+          {chips.map((c, i) => (
+            <View key={`${c.label}-${i}`} style={styles.introChip}>
+              {c.icon ? (
+                <Ionicons name={c.icon} size={12} color={c.iconColor} />
+              ) : null}
+              <Text style={styles.introChipText}>{c.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </Pressable>
+  ) : null;
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="chat-screen">
       <View style={styles.header}>
         <Pressable testID="chat-back-btn" onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
         </Pressable>
         {partner && (
           <>
@@ -449,36 +574,28 @@ export default function ChatScreen() {
               style={styles.headerInfo}
               onPress={() => router.push(`/user/${partner.id}`)}
             >
-              <Avatar
-                name={partner.name}
-                url={partner.avatar_url}
-                size={38}
-                flagCode={countryToCode(partner.country)}
-                online={partner.is_online}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.headerName}>{partner.name}</Text>
-                <Text style={styles.headerLang}>
-                  Native {langName(partner.native_language)} · Learning{" "}
-                  {langName(partner.learning_language)}
-                </Text>
-              </View>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {partner.name}
+              </Text>
+              <Text style={styles.headerStatus}>
+                {partner.is_online ? "Active now" : "Offline"}
+              </Text>
             </Pressable>
             <Pressable
               testID="chat-call-btn"
-              style={styles.callBtn}
+              style={styles.headerIconBtn}
               onPress={() => startCall(partner)}
             >
-              <Ionicons name="call" size={18} color={colors.onBrand} />
+              <Ionicons name="call-outline" size={22} color={colors.onSurface} />
             </Pressable>
             <Pressable
               testID="chat-menu-btn"
-              style={styles.menuBtn}
+              style={styles.headerIconBtn}
               onPress={() => setMenuOpen(true)}
             >
               <Ionicons
-                name="ellipsis-vertical"
-                size={18}
+                name="ellipsis-horizontal"
+                size={22}
                 color={colors.onSurface}
               />
             </Pressable>
@@ -589,6 +706,7 @@ export default function ChatScreen() {
             data={messages}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messageList}
+            ListHeaderComponent={partnerCard}
             ListEmptyComponent={
               <View style={styles.center}>
                 <Ionicons name="hand-left-outline" size={48} color={colors.borderStrong} />
@@ -597,19 +715,35 @@ export default function ChatScreen() {
                 </Text>
               </View>
             }
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               const mine = item.sender_id === user?.id;
               const translated = translations[item.id];
               const correction = corrections[item.id];
               const isVoice = item.type === "voice" && item.audio_id;
               const isImage = item.type === "image" && item.image_id;
+              const prev = messages[index - 1];
+              const showDate = !prev || !sameDay(prev.created_at, item.created_at);
               return (
-                <View
-                  style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}
-                >
+                <>
+                  {showDate && (
+                    <Text style={styles.dateSep}>
+                      {dateSeparator(item.created_at)}
+                    </Text>
+                  )}
                   <View
-                    style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
+                    style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}
                   >
+                    {!mine && (
+                      <Avatar
+                        name={partner?.name || ""}
+                        url={partner?.avatar_url}
+                        size={32}
+                        flagCode={countryToCode(partner?.country)}
+                      />
+                    )}
+                    <View
+                      style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
+                    >
                     {isVoice ? (
                       <VoiceBubble
                         testID={`voice-bubble-${item.id}`}
@@ -738,7 +872,8 @@ export default function ChatScreen() {
                       )}
                     </View>
                   </View>
-                </View>
+                  </View>
+                </>
               );
             }}
           />
@@ -777,65 +912,108 @@ export default function ChatScreen() {
                 </Pressable>
               </View>
             )}
-          <View style={styles.inputRow}>
-            <Pressable
-              testID="chat-media-btn"
-              onPress={pickImage}
-              style={[styles.toolBtn, uploadingImage && { opacity: 0.4 }]}
-              disabled={uploadingImage}
-            >
-              {uploadingImage ? (
-                <ActivityIndicator size="small" color={colors.brand} />
+          <View style={styles.inputArea}>
+            <View style={styles.inputRow}>
+              <TextInput
+                testID="chat-message-input"
+                style={styles.input}
+                placeholder="Type a message..."
+                placeholderTextColor={colors.onSurfaceSecondary}
+                value={draft}
+                onChangeText={setDraft}
+                multiline
+              />
+              {draft.trim() ? (
+                <View style={styles.inlineActions}>
+                  <Pressable
+                    testID="chat-ai-fix-btn"
+                    onPress={fixDraft}
+                    style={draftFixing && { opacity: 0.4 }}
+                    disabled={draftFixing}
+                    hitSlop={6}
+                  >
+                    {draftFixing ? (
+                      <ActivityIndicator size="small" color={colors.brand} />
+                    ) : (
+                      <Ionicons name="sparkles" size={20} color={colors.brand} />
+                    )}
+                  </Pressable>
+                  <Pressable
+                    testID="chat-send-btn"
+                    onPress={send}
+                    style={[styles.sendBtn, sending && { opacity: 0.4 }]}
+                    disabled={sending}
+                  >
+                    <Ionicons name="send" size={18} color={colors.onBrand} />
+                  </Pressable>
+                </View>
               ) : (
-                <Ionicons name="add" size={24} color={colors.brand} />
-              )}
-            </Pressable>
-            <TextInput
-              testID="chat-message-input"
-              style={styles.input}
-              placeholder="Type a message..."
-              placeholderTextColor={colors.onSurfaceSecondary}
-              value={draft}
-              onChangeText={setDraft}
-              multiline
-            />
-            {draft.trim() ? (
-              <>
                 <Pressable
-                  testID="chat-ai-fix-btn"
-                  onPress={fixDraft}
-                  style={[styles.toolBtn, draftFixing && { opacity: 0.4 }]}
-                  disabled={draftFixing}
+                  testID="chat-record-btn"
+                  onPress={startRecording}
+                  style={[styles.micBtn, uploadingVoice && { opacity: 0.4 }]}
+                  disabled={uploadingVoice}
+                  hitSlop={6}
                 >
-                  {draftFixing ? (
+                  {uploadingVoice ? (
                     <ActivityIndicator size="small" color={colors.brand} />
                   ) : (
-                    <Ionicons name="sparkles" size={19} color={colors.brand} />
+                    <Ionicons name="mic-outline" size={24} color={colors.onSurfaceSecondary} />
                   )}
                 </Pressable>
-                <Pressable
-                  testID="chat-send-btn"
-                  onPress={send}
-                  style={[styles.sendBtn, sending && { opacity: 0.4 }]}
-                  disabled={sending}
-                >
-                  <Ionicons name="send" size={18} color={colors.onBrand} />
-                </Pressable>
-              </>
-            ) : (
+              )}
+            </View>
+            <View style={styles.toolbarRow}>
               <Pressable
-                testID="chat-record-btn"
-                onPress={startRecording}
-                style={[styles.sendBtn, uploadingVoice && { opacity: 0.4 }]}
-                disabled={uploadingVoice}
+                testID="chat-media-btn"
+                onPress={pickImage}
+                style={[styles.toolIcon, uploadingImage && { opacity: 0.4 }]}
+                disabled={uploadingImage}
               >
-                {uploadingVoice ? (
-                  <ActivityIndicator size="small" color={colors.onBrand} />
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={colors.brand} />
                 ) : (
-                  <Ionicons name="mic" size={19} color={colors.onBrand} />
+                  <Ionicons name="add-circle-outline" size={26} color={colors.onSurface} />
                 )}
               </Pressable>
-            )}
+              <Pressable
+                testID="tool-image"
+                onPress={pickImage}
+                style={styles.toolIcon}
+                disabled={uploadingImage}
+              >
+                <Ionicons name="image-outline" size={24} color={colors.onSurface} />
+              </Pressable>
+              <Pressable
+                testID="tool-emoji"
+                onPress={() => setDraft((d) => d + "😊")}
+                style={styles.toolIcon}
+              >
+                <Ionicons name="happy-outline" size={24} color={colors.onSurface} />
+              </Pressable>
+              <Pressable
+                testID="tool-gift"
+                onPress={() => notify("Gifts", "Sending gifts is coming soon!")}
+                style={styles.toolIcon}
+              >
+                <Ionicons name="gift-outline" size={24} color={colors.onSurface} />
+              </Pressable>
+              <Pressable
+                testID="tool-translate"
+                onPress={fixDraft}
+                style={[styles.toolIcon, draftFixing && { opacity: 0.4 }]}
+                disabled={draftFixing}
+              >
+                <Ionicons name="language-outline" size={24} color={colors.onSurface} />
+              </Pressable>
+              <Pressable
+                testID="tool-templates"
+                onPress={() => notify("Quick replies", "Message templates are coming soon!")}
+                style={styles.toolIcon}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
           </View>
           </>
         )}
@@ -848,13 +1026,13 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surface,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.md,
-      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       backgroundColor: colors.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -867,15 +1045,26 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: "center",
     },
     headerInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.md,
       flex: 1,
+      justifyContent: "center",
     },
     headerName: {
       fontFamily: fonts.displaySemi,
-      fontSize: 16,
+      fontSize: 18,
       color: colors.onSurface,
+    },
+    headerStatus: {
+      fontFamily: fonts.text,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
+      marginTop: 1,
+    },
+    headerIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
     },
     headerLang: {
       fontFamily: fonts.text,
@@ -972,8 +1161,86 @@ const makeStyles = (colors: ThemeColors) =>
       gap: spacing.sm,
       flexGrow: 1,
     },
+    partnerCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    partnerTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    partnerNameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    partnerName: {
+      fontFamily: fonts.displaySemi,
+      fontSize: 18,
+      color: colors.onSurface,
+      flexShrink: 1,
+    },
+    genderPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+      borderRadius: radius.pill,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    genderPillText: {
+      fontFamily: fonts.textBold,
+      fontSize: 11,
+      color: "#FFFFFF",
+    },
+    partnerSub: {
+      fontFamily: fonts.text,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
+      marginTop: 2,
+    },
+    partnerBio: {
+      fontFamily: fonts.text,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.onSurface,
+    },
+    chipsWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs + 2,
+    },
+    introChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+    },
+    introChipText: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: colors.onSurfaceTertiary,
+    },
+    dateSep: {
+      alignSelf: "center",
+      fontFamily: fonts.text,
+      fontSize: 11,
+      color: colors.onSurfaceSecondary,
+      marginVertical: spacing.sm,
+    },
     bubbleRow: {
       flexDirection: "row",
+      alignItems: "flex-end",
+      gap: spacing.sm,
     },
     rowMine: {
       justifyContent: "flex-end",
@@ -982,8 +1249,8 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: "flex-start",
     },
     bubble: {
-      maxWidth: "80%",
-      borderRadius: radius.md,
+      maxWidth: "76%",
+      borderRadius: radius.lg,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm + 2,
       gap: spacing.xs,
@@ -993,7 +1260,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderBottomRightRadius: radius.sm / 2,
     },
     bubbleTheirs: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceSecondary,
       borderBottomLeftRadius: radius.sm / 2,
     },
     bubbleText: {
@@ -1131,14 +1398,47 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    inputRow: {
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: spacing.sm,
-      padding: spacing.md,
+    inputArea: {
       backgroundColor: colors.surface,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+    },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: radius.pill,
+      paddingLeft: spacing.lg,
+      paddingRight: spacing.sm,
+      paddingVertical: 4,
+    },
+    inlineActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    micBtn: {
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    toolbarRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.xs,
+    },
+    toolIcon: {
+      width: 44,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
     },
     toolBtn: {
       width: 40,
@@ -1150,14 +1450,11 @@ const makeStyles = (colors: ThemeColors) =>
     },
     input: {
       flex: 1,
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm + 2,
       fontFamily: fonts.text,
       fontSize: 15,
       color: colors.onSurface,
       maxHeight: 110,
+      paddingVertical: spacing.sm,
     },
     sendBtn: {
       width: 40,
