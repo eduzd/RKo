@@ -655,6 +655,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.brand,
       alignItems: "center",
       justifyContent: "center",
+      marginTop: 7,
     },
     modalBackdrop: {
       flex: 1,
