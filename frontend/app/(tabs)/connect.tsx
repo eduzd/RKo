@@ -262,7 +262,7 @@ export default function Connect() {
           style={styles.waveBtn}
           onPress={() => openChat(item)}
         >
-          <Ionicons name="chatbubble" size={19} color="#FFFFFF" />
+          <Ionicons name="chatbubble" size={20} color="#FFFFFF" />
         </Pressable>
       </Pressable>
     );
@@ -649,13 +649,14 @@ const makeStyles = (colors: ThemeColors) =>
       color: "#EA580C",
     },
     waveBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.brand,
       alignItems: "center",
       justifyContent: "center",
-      marginTop: 7,
+      marginTop: 5,
+      marginLeft: -4,
     },
     modalBackdrop: {
       flex: 1,
