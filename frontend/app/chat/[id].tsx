@@ -958,7 +958,7 @@ export default function ChatScreen() {
                   {uploadingVoice ? (
                     <ActivityIndicator size="small" color={colors.brand} />
                   ) : (
-                    <Ionicons name="mic-outline" size={24} color={colors.onSurfaceSecondary} />
+                    <Ionicons name="mic-outline" size={26} color={colors.onSurfaceSecondary} />
                   )}
                 </Pressable>
               )}
@@ -1402,8 +1402,8 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surface,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
       paddingBottom: spacing.xs,
     },
     inputRow: {
@@ -1411,10 +1411,10 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       gap: spacing.sm,
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: radius.pill,
-      paddingLeft: spacing.lg,
+      borderRadius: 28,
+      paddingLeft: spacing.xl,
       paddingRight: spacing.sm,
-      paddingVertical: 4,
+      minHeight: 54,
     },
     inlineActions: {
       flexDirection: "row",
@@ -1422,8 +1422,8 @@ const makeStyles = (colors: ThemeColors) =>
       gap: spacing.sm,
     },
     micBtn: {
-      width: 36,
-      height: 36,
+      width: 42,
+      height: 42,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -1431,7 +1431,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.xs,
     },
     toolIcon: {
@@ -1451,14 +1451,14 @@ const makeStyles = (colors: ThemeColors) =>
     input: {
       flex: 1,
       fontFamily: fonts.text,
-      fontSize: 15,
+      fontSize: 17,
       color: colors.onSurface,
-      maxHeight: 110,
-      paddingVertical: spacing.sm,
+      maxHeight: 120,
+      paddingVertical: Platform.OS === "web" ? 14 : 10,
     },
     sendBtn: {
-      width: 40,
-      height: 40,
+      width: 42,
+      height: 42,
       borderRadius: radius.pill,
       backgroundColor: colors.brand,
       alignItems: "center",
