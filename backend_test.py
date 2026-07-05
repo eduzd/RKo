@@ -6,7 +6,7 @@ Tests the new POST /api/rooms/{room_id}/share-to-moments endpoint
 import requests
 import json
 
-BASE_URL = "https://368bd428-054d-4ed0-be5c-b4aaf6dfeef5.preview.emergentagent.com/api"
+BASE_URL = "https://ui-feature-check.preview.emergentagent.com/api"
 
 # Test credentials
 USER_A = {"email": "mei@demo.com", "password": "Demo1234!"}
