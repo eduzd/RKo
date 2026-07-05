@@ -499,7 +499,7 @@ export default function RoomScreen() {
         {member.hand_raised && (
           <View style={styles.handBadge}>
             <MaterialCommunityIcons
-              name="hand-back-left"
+              name="human-greeting-variant"
               size={12}
               color="#FFF"
             />
@@ -537,7 +537,7 @@ export default function RoomScreen() {
       {member.hand_raised && (
         <View style={styles.handBadgeSmall}>
           <MaterialCommunityIcons
-            name="hand-back-left"
+            name="human-greeting-variant"
             size={10}
             color="#FFF"
           />
@@ -643,7 +643,7 @@ export default function RoomScreen() {
           >
             <View style={styles.handNotifyIconWrap}>
               <MaterialCommunityIcons
-                name="hand-back-left"
+                name="human-greeting-variant"
                 size={16}
                 color="#FFFFFF"
               />
@@ -819,18 +819,6 @@ export default function RoomScreen() {
             />
 
             <View style={styles.floatingStack} pointerEvents="box-none">
-              {(room.most_gifted || []).slice(0, 2).map((g) => (
-                <View
-                  key={g.id}
-                  style={styles.topGifterWrap}
-                  testID={`room-top-gifter-${g.id}`}
-                >
-                  <Avatar name={g.name} url={g.avatar_url} size={34} frame={g.active_frame} />
-                  <View style={styles.crownBadge}>
-                    <Ionicons name="trophy" size={9} color="#FBBF24" />
-                  </View>
-                </View>
-              ))}
               <Pressable
                 testID={isSpeaker ? "room-mic-btn" : "room-hand-btn"}
                 style={[
@@ -853,10 +841,9 @@ export default function RoomScreen() {
                   />
                 ) : (
                   <MaterialCommunityIcons
-                    name="hand-back-left"
-                    size={23}
+                    name="human-greeting-variant"
+                    size={24}
                     color="#FFFFFF"
-                    style={{ marginTop: -3 }}
                   />
                 )}
               </Pressable>
@@ -1176,7 +1163,7 @@ export default function RoomScreen() {
                     </Text>
                     {m.hand_raised && (
                       <MaterialCommunityIcons
-                        name="hand-back-left"
+                        name="human-greeting-variant"
                         size={17}
                         color="#FBBF24"
                       />
@@ -1728,8 +1715,10 @@ const makeStyles = () =>
     },
     floatingStack: {
       position: "absolute",
-      right: 10,
-      bottom: 10,
+      right: 12,
+      // Lifted a little above the quick-reply / input area so the raise-hand
+      // button sits in a comfortable thumb spot.
+      bottom: 34,
       alignItems: "center",
       gap: 10,
     },
@@ -1802,6 +1791,7 @@ const makeStyles = () =>
     },
     input: {
       flex: 1,
+      minWidth: 0,
       backgroundColor: "rgba(0,0,0,0.28)",
       borderRadius: radius.pill,
       paddingHorizontal: spacing.lg,
