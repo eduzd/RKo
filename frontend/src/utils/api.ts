@@ -88,6 +88,8 @@ export interface User {
   school?: string | null;
   birthday?: string | null;
   cover_url?: string | null;
+  voice_bio_id?: string | null;
+  voice_bio_duration_ms?: number | null;
 }
 
 export interface Visitor extends User {

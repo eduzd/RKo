@@ -17,6 +17,10 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
+import { FlagIcon } from "@/src/components/FlagIcon";
+import { LikersRow } from "@/src/components/LikersRow";
+import { RoomMomentCard } from "@/src/components/RoomMomentCard";
+import { VoiceBubble } from "@/src/components/VoiceBubble";
 import { countryToCode } from "@/src/constants/countries";
 import { PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
@@ -40,6 +44,8 @@ export default function UserProfile() {
   const [momentsCount, setMomentsCount] = useState(0);
   const [moments, setMoments] = useState<Moment[] | null>(null);
   const [liked, setLiked] = useState(false);
+  const [postTranslations, setPostTranslations] = useState<Record<string, string>>({});
+  const [translatingPost, setTranslatingPost] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
@@ -103,6 +109,65 @@ export default function UserProfile() {
       // retry on next tap
     } finally {
       setFollowBusy(false);
+    }
+  };
+
+  const toggleMomentLike = async (moment: Moment) => {
+    setMoments((prev) =>
+      (prev || []).map((m) =>
+        m.id === moment.id
+          ? {
+              ...m,
+              liked_by_me: !m.liked_by_me,
+              like_count: m.like_count + (m.liked_by_me ? -1 : 1),
+            }
+          : m,
+      ),
+    );
+    try {
+      await api.post(`/moments/${moment.id}/like`);
+    } catch {
+      // refetch on failure
+      api
+        .get<Moment[]>(`/moments?user_id=${id}`)
+        .then((d) => setMoments(d))
+        .catch(() => {});
+    }
+  };
+
+  const translatePost = async (moment: Moment) => {
+    if (postTranslations[moment.id]) {
+      setPostTranslations((prev) => {
+        const next = { ...prev };
+        delete next[moment.id];
+        return next;
+      });
+      return;
+    }
+    if (!moment.text || translatingPost) return;
+    setTranslatingPost(moment.id);
+    try {
+      const result = await api.post<{ translated: string }>("/ai/translate", {
+        text: moment.text,
+        target_language: me?.native_language || "en",
+      });
+      setPostTranslations((prev) => ({ ...prev, [moment.id]: result.translated }));
+    } catch {
+      // silent — user can retry
+    } finally {
+      setTranslatingPost(null);
+    }
+  };
+
+  const joinRoomFromMoment = async (roomId: string) => {
+    try {
+      await api.post(`/rooms/${roomId}/join`);
+      router.push(`/room/${roomId}`);
+    } catch (e) {
+      Alert.alert(
+        "Voice room",
+        e instanceof Error ? e.message : "Could not join this room.",
+      );
     }
   };
 
@@ -343,6 +408,18 @@ export default function UserProfile() {
             </View>
           </View>
 
+          {/* Voice introduction */}
+          {profile.voice_bio_id ? (
+            <View style={styles.voiceBioWrap} testID="profile-voice-bio">
+              <VoiceBubble
+                testID="profile-voice-bio-bubble"
+                audioId={profile.voice_bio_id}
+                durationMs={profile.voice_bio_duration_ms}
+                mine={false}
+              />
+            </View>
+          ) : null}
+
           {/* Tabs */}
           <View style={styles.tabsRow}>
             {(
@@ -484,14 +561,32 @@ export default function UserProfile() {
                       <Avatar
                         name={profile.name}
                         url={profile.avatar_url}
-                        size={40}
+                        size={42}
                         flagCode={countryToCode(profile.country)}
+                        online={profile.is_online}
+                        frame={profile.active_frame}
                       />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.momentName}>{profile.name}</Text>
-                        <Text style={styles.momentDate}>
-                          {timeAgo(m.created_at)}
-                        </Text>
+                        <View style={styles.momentNameRow}>
+                          <Text style={styles.momentName}>{profile.name}</Text>
+                          {profile.is_vip ? (
+                            <VipBadge small tier={profile.vip_tier} />
+                          ) : null}
+                        </View>
+                        <View style={styles.momentLangRow}>
+                          <FlagIcon code={profile.native_language} size={13} />
+                          <Ionicons
+                            name="arrow-forward"
+                            size={9}
+                            color={colors.onSurfaceSecondary}
+                          />
+                          {learningList.slice(0, 3).map((c) => (
+                            <FlagIcon key={c} code={c} size={13} />
+                          ))}
+                          <Text style={styles.momentDate}>
+                            {" "}· {timeAgo(m.created_at)}
+                          </Text>
+                        </View>
                       </View>
                       {isSelf && (
                         <View style={styles.boostChip}>
@@ -500,34 +595,85 @@ export default function UserProfile() {
                         </View>
                       )}
                     </View>
-                    <Text style={styles.momentText}>{m.text}</Text>
-                    {m.image_url ? (
+                    {m.text ? (
+                      <Text style={styles.momentText}>{m.text}</Text>
+                    ) : null}
+                    {postTranslations[m.id] ? (
+                      <View style={styles.translationBlock}>
+                        <Ionicons name="language" size={13} color={colors.brand} />
+                        <Text style={styles.translationText}>
+                          {postTranslations[m.id]}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {m.room ? (
+                      <RoomMomentCard
+                        testID={`profile-moment-room-card-${m.id}`}
+                        room={m.room}
+                        onPress={() => joinRoomFromMoment(m.room!.id)}
+                      />
+                    ) : m.image_url ? (
                       <Image
                         source={{ uri: assetUrl(m.image_url) || undefined }}
                         style={styles.momentImg}
                         contentFit="cover"
+                        transition={150}
                       />
                     ) : null}
                     <View style={styles.momentStats}>
-                      <View style={styles.momentStat}>
+                      <Pressable
+                        testID={`profile-moment-like-${m.id}`}
+                        style={styles.momentStat}
+                        onPress={() => toggleMomentLike(m)}
+                      >
                         <Ionicons
                           name={m.liked_by_me ? "heart" : "heart-outline"}
-                          size={16}
+                          size={20}
                           color={m.liked_by_me ? colors.error : colors.onSurfaceSecondary}
                         />
                         <Text style={styles.momentStatText}>{m.like_count}</Text>
-                      </View>
-                      <View style={styles.momentStat}>
+                      </Pressable>
+                      <Pressable
+                        testID={`profile-moment-comment-${m.id}`}
+                        style={styles.momentStat}
+                        onPress={() => router.push(`/moment/${m.id}`)}
+                      >
                         <Ionicons
                           name="chatbubble-outline"
-                          size={15}
+                          size={18}
                           color={colors.onSurfaceSecondary}
                         />
                         <Text style={styles.momentStatText}>
                           {m.comment_count}
                         </Text>
-                      </View>
+                      </Pressable>
+                      {m.text ? (
+                        <Pressable
+                          testID={`profile-moment-translate-${m.id}`}
+                          style={styles.momentStat}
+                          onPress={() => translatePost(m)}
+                        >
+                          {translatingPost === m.id ? (
+                            <ActivityIndicator size="small" color={colors.brand} />
+                          ) : (
+                            <Ionicons
+                              name="language"
+                              size={18}
+                              color={
+                                postTranslations[m.id]
+                                  ? colors.brand
+                                  : colors.onSurfaceSecondary
+                              }
+                            />
+                          )}
+                        </Pressable>
+                      ) : null}
                     </View>
+                    <LikersRow
+                      momentId={m.id}
+                      likeCount={m.like_count}
+                      likers={m.likers}
+                    />
                   </Pressable>
                 ))
               )}
@@ -818,6 +964,10 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
+    voiceBioWrap: {
+      maxWidth: 220,
+      marginTop: -2,
+    },
     tabsRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -1049,24 +1199,50 @@ const makeStyles = (colors: ThemeColors) =>
     },
     momentCard: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: radius.lg,
+      borderRadius: radius.md,
       padding: spacing.lg,
-      gap: spacing.sm,
+      gap: spacing.md,
     },
     momentHead: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.sm,
+      gap: spacing.md,
+    },
+    momentNameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs + 2,
     },
     momentName: {
-      fontFamily: fonts.textBold,
+      fontFamily: fonts.displaySemi,
       fontSize: 15,
       color: colors.onSurface,
+    },
+    momentLangRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      marginTop: 2,
     },
     momentDate: {
       fontFamily: fonts.text,
       fontSize: 12,
       color: colors.onSurfaceSecondary,
+    },
+    translationBlock: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: spacing.sm,
+      backgroundColor: colors.brandTertiary,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+    },
+    translationText: {
+      flex: 1,
+      fontFamily: fonts.text,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.onBrandTertiary,
     },
     boostChip: {
       flexDirection: "row",
@@ -1090,19 +1266,19 @@ const makeStyles = (colors: ThemeColors) =>
     },
     momentImg: {
       width: "100%",
-      height: 180,
-      borderRadius: radius.md,
+      height: 220,
+      borderRadius: radius.sm,
       backgroundColor: colors.surfaceTertiary,
     },
     momentStats: {
       flexDirection: "row",
-      gap: spacing.lg,
+      gap: spacing.xl,
       marginTop: spacing.xs,
     },
     momentStat: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 5,
+      gap: spacing.xs + 2,
     },
     momentStatText: {
       fontFamily: fonts.textSemi,

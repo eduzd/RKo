@@ -574,6 +574,80 @@ agent_communication:
     - agent: "testing"
       message: "✅ PARTNER CARD TAGS FIX VERIFIED - ALL TESTS PASSED (8 cards, 0 failures). Tested on mobile viewport (390x844) with mei@demo.com. Scrolled through ALL partner cards: Didi, Bhh, Gigi, Didi, Demo User, Emma Wilson, Amélie Laurent, Yuki Tanaka. VERIFICATION RESULTS: (1) ✅ ALL tags on SINGLE horizontal row - measured y-coordinates for all cards with multiple tags show 0.00px difference (perfect alignment). Cards tested: Didi (2 tags, y-diff:0.00px), Bhh (2 tags, y-diff:0.00px), Demo User (2 tags, y-diff:0.00px), Yuki Tanaka (2 tags, y-diff:0.00px). (2) ✅ Long labels truncate with ellipsis - screenshots show 'Loves Fitne...', 'Language exchan...', 'Similar intere...' with proper truncation. (3) ✅ NO wrapping detected - 7 cards with tags all PASSED, 1 card with no tags. (4) ✅ No horizontal overflow outside cards. (5) ✅ No console errors - only minor font loading failures (non-critical) and 'props.pointerEvents is deprecated' warning (non-blocking). Screenshots captured at top/middle/bottom of list as evidence. FIX WORKING PERFECTLY. Ready for main agent to summarize and finish."
 
+## Test Run — User Feedback Round 6 (inline profile editing, voice bio, feed-style profile moments)
+user_problem_statement: (1) Edit Profile - text fields must edit INLINE in the row (no modal/sheet opening) - name, bio, hometown, occupation, school, places_to_go, username, birthday. Pickers (MBTI/blood/gender/languages/interests) still use the sheet. (2) Users can record a VOICE INTRODUCTION for their profile bio - record/play/re-record/delete in Edit Profile, playable bubble on profile preview. (3) Profile preview Moments tab must render posts exactly like the main Moments feed - including the voice-room share card (RoomMomentCard), lang flags header, like/comment/translate actions, LikersRow.
+
+backend:
+  - task: "POST /api/users/me/voice-bio + DELETE /api/users/me/voice-bio"
+    implemented: true
+    working: true
+    file: "backend/routes/users.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "POST stores base64 audio in audio_col (max 3MB, duration capped 60s), sets voice_bio_id + voice_bio_duration_ms on user (returned in user_public). DELETE removes audio doc + unsets fields. Curl-verified both."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL TESTS PASSED (11/11). Test results: (1) POST /api/users/me/voice-bio without auth → 401 ✅ (2) With auth + valid base64 audio → 200 with voice_bio_id (non-null UUID) and voice_bio_duration_ms=5000 ✅ (3) Invalid base64 ('!!!') → 400 ✅ (4) Duration 75000ms gets capped to 60000ms ✅ (5) GET /api/audio/{voice_bio_id} returns audio bytes with correct mime (audio/webm) ✅ (6) GET /api/users/{user_id} (as another authed user) includes voice_bio_id + voice_bio_duration_ms ✅ (7) DELETE /api/users/me/voice-bio → 200 with voice_bio_id null/absent ✅ (8) GET /api/audio/{old_voice_bio_id} after deletion → 404 (audio doc deleted) ✅ (9) Smoke: PUT /api/users/me {hometown:'TestTown'} → 200 with hometown updated ✅ (10) Smoke: GET /api/auth/me includes hometown update ✅ (11) Smoke: POST /api/users/me/check-in returns valid shape {already_checked_in, coins_awarded, streak_count, coins} ✅. Used fresh test user (voicebio_test_*@lingua.app) to avoid destroying mei's seeded voice bio. Verified mei's voice bio remains intact (voice_bio_id: 25c64fd6-518d-46a2-ab8a-a1a4444c15fa). All voice bio endpoints working correctly."
+
+frontend:
+  - task: "Edit Profile - inline text editing (no modal for text fields)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/edit-profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "renderInlineRow render-function: tap row/pencil -> TextInput appears in place with check (save) and X (cancel) buttons. Username strips @, birthday validates YYYY-MM-DD inline. testIDs: inline-row-{field}, inline-input-{field}, inline-save-{field}, inline-cancel-{field}."
+  - task: "Voice introduction record/play/delete in Edit Profile + playback on user profile"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/edit-profile.tsx, frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Voice Introduction row in About Me card: mic button records (expo-audio), stop uploads to /users/me/voice-bio, VoiceBubble playback, trash deletes, mic re-records. Profile preview shows VoiceBubble under bio when voice_bio_id present (testID profile-voice-bio). Seeded voice bio + a shared room moment for mei@demo.com."
+  - task: "Profile Moments tab - feed-style cards with RoomMomentCard"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Moments tab now mirrors feed card: avatar+name+VIP+flag row+time header, text, RoomMomentCard for room shares (join on tap), 220px image, like toggle/comment/translate actions, LikersRow."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.11"
+  test_sequence: 10
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "POST /api/users/me/voice-bio + DELETE /api/users/me/voice-bio"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Test the NEW voice-bio backend endpoints of LinguaConnect (FastAPI at localhost:8001, /api prefix). See /app/test_result.md section 'User Feedback Round 6'. Credentials: mei@demo.com / Demo1234! (or register a fresh user). (1) POST /api/users/me/voice-bio - Without auth → 401/403, With auth + valid base64 → 200 with voice_bio_id and duration, Invalid base64 → 400, duration_ms above 60000 gets capped to 60000, GET /api/audio/{voice_bio_id} returns audio bytes, GET /api/users/{user_id} includes voice_bio_id + duration. (2) DELETE /api/users/me/voice-bio - With auth → 200 with voice_bio_id null, GET /api/audio/{old_voice_bio_id} returns 404. (3) Smoke: PUT /api/users/me {hometown:'TestTown'} still works, GET /api/auth/me includes hometown update, POST /api/users/me/check-in returns valid shape. NOTE: use a freshly registered user for the flow so you don't destroy mei's seeded voice bio (mei's voice bio is needed for frontend testing — do NOT delete mei's voice bio). Update test_result.md with results. Do NOT test frontend."
+    - agent: "testing"
+      message: "✅ ALL BACKEND TESTS PASSED (11/11). Voice bio endpoints working perfectly. Test summary: (1) POST /api/users/me/voice-bio without auth correctly returns 401 ✅ (2) With valid auth + base64 audio returns 200 with voice_bio_id (UUID) and voice_bio_duration_ms=5000 ✅ (3) Invalid base64 correctly returns 400 ✅ (4) Duration capping works: 75000ms → 60000ms ✅ (5) GET /api/audio/{voice_bio_id} returns audio bytes with correct mime type (audio/webm) ✅ (6) GET /api/users/{user_id} (as another authed user) includes voice_bio_id and voice_bio_duration_ms ✅ (7) DELETE /api/users/me/voice-bio returns 200 with voice_bio_id null/absent ✅ (8) GET /api/audio/{old_voice_bio_id} after deletion returns 404 (audio doc deleted from DB) ✅ (9) Smoke test: PUT /api/users/me {hometown:'TestTown'} works correctly ✅ (10) Smoke test: GET /api/auth/me includes hometown update ✅ (11) Smoke test: POST /api/users/me/check-in returns valid shape with all required fields ✅. Used fresh test user (voicebio_test_*@lingua.app) to preserve mei's voice bio. Verified mei's voice bio remains intact (voice_bio_id: 25c64fd6-518d-46a2-ab8a-a1a4444c15fa, duration: 5000ms). No critical issues found. Backend voice bio feature fully functional. Ready for main agent to summarize and finish."
+
+
 ## Test Run — User Feedback Round 5 (visitors box with avatar stack + admin dashboard verification)
 user_problem_statement: (1) Me/Profile page - Visitors box (next to Streak box) must show 3-4 circular visitor avatars inside it plus the visit count; tapping opens the full visitors list; the separate lower "unlock" card is removed. (2) Verify admin dashboard at /admin-x7k2p9 works with admin@lingua.app / Admin1234! and reflects live app data.
 

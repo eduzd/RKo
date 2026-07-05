@@ -1,9 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import {
+  AudioModule,
+  RecordingPresets,
+  useAudioRecorder,
+} from "expo-audio";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +26,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { VoiceBubble } from "@/src/components/VoiceBubble";
 import { INTERESTS, MAX_INTERESTS } from "@/src/constants/interests";
 import {
   LANGUAGES,
@@ -116,6 +122,22 @@ export default function EditProfile() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [savingLevelFor, setSavingLevelFor] = useState<string | null>(null);
+  // Inline text editing — edits happen right in the row, no modal.
+  const [inlineKey, setInlineKey] = useState<string | null>(null);
+  const [inlineDraft, setInlineDraft] = useState("");
+  const [inlineBusy, setInlineBusy] = useState(false);
+  const [inlineErr, setInlineErr] = useState<string | null>(null);
+  // Voice introduction recording
+  const [recordingBio, setRecordingBio] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [uploadingVoiceBio, setUploadingVoiceBio] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  useEffect(() => {
+    if (!recordingBio) return;
+    const t = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [recordingBio]);
 
   const persist = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -124,6 +146,129 @@ export default function EditProfile() {
     },
     [setUser],
   );
+
+  // ── Inline text editing ──
+  const startInline = (fieldKey: string, value: string | null | undefined) => {
+    setInlineErr(null);
+    setInlineDraft(value || "");
+    setInlineKey(fieldKey);
+  };
+
+  const cancelInline = () => {
+    if (inlineBusy) return;
+    setInlineKey(null);
+    setInlineErr(null);
+  };
+
+  const saveInline = async () => {
+    if (!inlineKey || inlineBusy) return;
+    const value = inlineDraft.trim();
+    setInlineErr(null);
+    if (inlineKey === "birthday" && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      setInlineErr("Use the format YYYY-MM-DD");
+      return;
+    }
+    setInlineBusy(true);
+    try {
+      if (inlineKey === "username") {
+        const updated = await api.put<User>("/users/me/username", {
+          username: value.replace(/^@/, "").toLowerCase(),
+        });
+        setUser(updated);
+      } else {
+        await persist({ [inlineKey]: value });
+      }
+      setInlineKey(null);
+    } catch (e) {
+      setInlineErr(e instanceof Error ? e.message : "Could not save. Try again.");
+    } finally {
+      setInlineBusy(false);
+    }
+  };
+
+  // ── Voice introduction ──
+  const encodeAudio = async (uri: string): Promise<string> => {
+    if (Platform.OS === "web") {
+      const blob = await fetch(uri).then((r) => r.blob());
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+    const FileSystem = await import("expo-file-system/legacy");
+    return FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  };
+
+  const startVoiceBio = async () => {
+    try {
+      let perm = await AudioModule.getRecordingPermissionsAsync();
+      if (!perm.granted) {
+        perm = await AudioModule.requestRecordingPermissionsAsync();
+      }
+      if (!perm.granted) {
+        Alert.alert(
+          "Microphone",
+          "Microphone access is needed to record your voice introduction.",
+        );
+        return;
+      }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecordSeconds(0);
+      setRecordingBio(true);
+    } catch {
+      Alert.alert("Voice intro", "Could not start recording. Try again.");
+    }
+  };
+
+  const stopVoiceBio = async () => {
+    const durationMs = Math.max(recordSeconds * 1000, 1000);
+    setRecordingBio(false);
+    setUploadingVoiceBio(true);
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) throw new Error("No recording");
+      const base64 = await encodeAudio(uri);
+      const mime = Platform.OS === "web" ? "audio/webm" : "audio/m4a";
+      const updated = await api.post<User>("/users/me/voice-bio", {
+        audio_base64: base64,
+        mime,
+        duration_ms: durationMs,
+      });
+      setUser(updated);
+    } catch {
+      Alert.alert("Voice intro", "Could not save your voice intro. Try again.");
+    } finally {
+      setUploadingVoiceBio(false);
+    }
+  };
+
+  const removeVoiceBio = () => {
+    const doRemove = async () => {
+      try {
+        const updated = await api.delete<User>("/users/me/voice-bio");
+        setUser(updated);
+      } catch {
+        Alert.alert("Voice intro", "Could not remove. Try again.");
+      }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Remove your voice introduction?")) doRemove();
+    } else {
+      Alert.alert("Voice intro", "Remove your voice introduction?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: doRemove },
+      ]);
+    }
+  };
 
   if (!user) {
     return null;
@@ -204,19 +349,7 @@ export default function EditProfile() {
     }
   };
 
-  // ── Editor openers ──
-  const openText = (
-    fieldKey: string,
-    title: string,
-    value: string | null | undefined,
-    type: "text" | "textarea" = "text",
-    sub?: string,
-  ) => {
-    setErr(null);
-    setDraft(value || "");
-    setEditor({ type, title, fieldKey, sub });
-  };
-
+  // ── Editor openers (pickers only — text fields edit inline in the row) ──
   const openOptions = (
     fieldKey: string,
     title: string,
@@ -281,28 +414,6 @@ export default function EditProfile() {
       title: "Hobbies & Interests",
       fieldKey: "interests",
       cap: MAX_INTERESTS,
-    });
-  };
-
-  const openBirthday = () => {
-    setErr(null);
-    setDraft(user.birthday || "");
-    setEditor({
-      type: "birthday",
-      title: "Birthday",
-      fieldKey: "birthday",
-      sub: "Format: YYYY-MM-DD (e.g. 1998-01-01)",
-    });
-  };
-
-  const openUsername = () => {
-    setErr(null);
-    setDraft(user.username || "");
-    setEditor({
-      type: "username",
-      title: "HelloTalk ID",
-      fieldKey: "username",
-      sub: "3–20 chars: lowercase letters, numbers, _ or . · changeable once a month",
     });
   };
 
@@ -409,6 +520,113 @@ export default function EditProfile() {
             </>
           )}
         </View>
+      </View>
+    );
+  };
+
+  // Inline-editable text row: tapping turns the value into a TextInput right
+  // in place — no modal or separate screen. Render-function (not a nested
+  // component) so the TextInput never remounts and keeps focus while typing.
+  const renderInlineRow = ({
+    icon,
+    iconColor,
+    iconBg,
+    label,
+    fieldKey,
+    value,
+    placeholder,
+    multiline,
+    sub,
+    last,
+  }: {
+    icon?: IconName;
+    iconColor?: string;
+    iconBg?: string;
+    label: string;
+    fieldKey: string;
+    value?: string | null;
+    placeholder?: string;
+    multiline?: boolean;
+    sub?: string;
+    last?: boolean;
+  }) => {
+    const editing = inlineKey === fieldKey;
+    return (
+      <View style={[styles.row, !last && styles.rowBorder, { alignItems: editing || multiline ? "flex-start" : "center" }]}>
+        {icon ? (
+          <View style={[styles.rowIcon, { backgroundColor: iconBg }]}>
+            <Ionicons name={icon} size={18} color={iconColor} />
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          {editing ? (
+            <>
+              <TextInput
+                testID={`inline-input-${fieldKey}`}
+                style={[styles.inlineInput, multiline && styles.inlineTextarea]}
+                value={inlineDraft}
+                onChangeText={setInlineDraft}
+                placeholder={placeholder || label}
+                placeholderTextColor={colors.onSurfaceSecondary}
+                multiline={!!multiline}
+                autoFocus
+                autoCapitalize={fieldKey === "username" ? "none" : "sentences"}
+                autoCorrect={fieldKey !== "username"}
+                onSubmitEditing={multiline ? undefined : saveInline}
+              />
+              {sub ? <Text style={styles.inlineSub}>{sub}</Text> : null}
+              {inlineErr ? (
+                <Text style={styles.inlineErr}>{inlineErr}</Text>
+              ) : null}
+            </>
+          ) : (
+            <Pressable
+              testID={`inline-row-${fieldKey}`}
+              onPress={() => startInline(fieldKey, value)}
+            >
+              <Text
+                style={[styles.rowValue, !value && styles.rowPlaceholder]}
+                numberOfLines={multiline ? 3 : 1}
+              >
+                {value || placeholder || "Not set"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+        {editing ? (
+          <View style={styles.inlineActions}>
+            {inlineBusy ? (
+              <ActivityIndicator size="small" color={colors.brand} />
+            ) : (
+              <>
+                <Pressable
+                  testID={`inline-cancel-${fieldKey}`}
+                  style={[styles.inlineBtn, styles.inlineBtnGhost]}
+                  onPress={cancelInline}
+                  hitSlop={4}
+                >
+                  <Ionicons name="close" size={16} color={colors.onSurfaceSecondary} />
+                </Pressable>
+                <Pressable
+                  testID={`inline-save-${fieldKey}`}
+                  style={styles.inlineBtn}
+                  onPress={saveInline}
+                  hitSlop={4}
+                >
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => startInline(fieldKey, value)}
+            hitSlop={6}
+          >
+            <Ionicons name="pencil" size={15} color={colors.brand} />
+          </Pressable>
+        )}
       </View>
     );
   };
@@ -541,45 +759,86 @@ export default function EditProfile() {
         {/* About Me */}
         <Text style={styles.sectionHeader}>About Me</Text>
         <View style={styles.card}>
-          <Row
-            label="Name"
-            value={user.name}
-            editText
-            onPress={() => openText("name", "Name", user.name)}
-          />
-          <Pressable
-            style={[styles.row, styles.rowBorder, { alignItems: "flex-start" }]}
-            onPress={() =>
-              openText("bio", "Self-introduction", user.bio, "textarea")
-            }
-          >
+          {renderInlineRow({
+            label: "Name",
+            fieldKey: "name",
+            value: user.name,
+            placeholder: "Your name",
+          })}
+          {renderInlineRow({
+            label: "Self-introduction",
+            fieldKey: "bio",
+            value: user.bio,
+            placeholder: "Add a self-introduction so partners know you",
+            multiline: true,
+          })}
+
+          {/* Voice introduction */}
+          <View style={[styles.row, { alignItems: "center" }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Self-introduction</Text>
-              <View style={styles.introRow}>
-                <Ionicons
-                  name="volume-high"
-                  size={16}
-                  color={colors.brand}
-                  style={{ marginTop: 3 }}
-                />
-                <Text
-                  style={[
-                    styles.rowValue,
-                    !user.bio && styles.rowPlaceholder,
-                    { flex: 1 },
-                  ]}
-                  numberOfLines={3}
-                >
-                  {user.bio || "Add a self-introduction so partners know you"}
+              <Text style={styles.rowLabel}>Voice Introduction</Text>
+              {recordingBio ? (
+                <View style={styles.voiceRecRow}>
+                  <View style={styles.voiceRecDot} />
+                  <Text style={styles.voiceRecText}>
+                    Recording… 0:{recordSeconds.toString().padStart(2, "0")}
+                  </Text>
+                </View>
+              ) : uploadingVoiceBio ? (
+                <View style={styles.voiceRecRow}>
+                  <ActivityIndicator size="small" color={colors.brand} />
+                  <Text style={styles.voiceRecText}>Saving…</Text>
+                </View>
+              ) : user.voice_bio_id ? (
+                <View style={styles.voiceBubbleWrap}>
+                  <VoiceBubble
+                    testID="voice-bio-bubble"
+                    audioId={user.voice_bio_id}
+                    durationMs={user.voice_bio_duration_ms}
+                    mine={false}
+                  />
+                </View>
+              ) : (
+                <Text style={[styles.rowValue, styles.rowPlaceholder]}>
+                  Let partners hear your voice
                 </Text>
-              </View>
+              )}
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={colors.onSurfaceSecondary}
-            />
-          </Pressable>
+            {recordingBio ? (
+              <Pressable
+                testID="voice-bio-stop-btn"
+                style={[styles.voiceCircleBtn, { backgroundColor: colors.error }]}
+                onPress={stopVoiceBio}
+              >
+                <Ionicons name="stop" size={16} color="#FFFFFF" />
+              </Pressable>
+            ) : uploadingVoiceBio ? null : user.voice_bio_id ? (
+              <View style={styles.inlineActions}>
+                <Pressable
+                  testID="voice-bio-delete-btn"
+                  style={[styles.voiceCircleBtn, { backgroundColor: colors.surfaceTertiary }]}
+                  onPress={removeVoiceBio}
+                >
+                  <Ionicons name="trash" size={15} color={colors.onSurfaceSecondary} />
+                </Pressable>
+                <Pressable
+                  testID="voice-bio-rerecord-btn"
+                  style={styles.voiceCircleBtn}
+                  onPress={startVoiceBio}
+                >
+                  <Ionicons name="mic" size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                testID="voice-bio-record-btn"
+                style={styles.voiceCircleBtn}
+                onPress={startVoiceBio}
+              >
+                <Ionicons name="mic" size={16} color="#FFFFFF" />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* Language */}
@@ -654,18 +913,16 @@ export default function EditProfile() {
             placeholder="Add your hobbies"
             onPress={openInterests}
           />
-          <Row
-            icon="airplane"
-            iconColor="#3B82F6"
-            iconBg="#DBEAFE"
-            label="Places I want to go"
-            value={user.places_to_go}
-            placeholder="Add a dream destination"
-            onPress={() =>
-              openText("places_to_go", "Places I want to go", user.places_to_go)
-            }
-            last
-          />
+          {renderInlineRow({
+            icon: "airplane",
+            iconColor: "#3B82F6",
+            iconBg: "#DBEAFE",
+            label: "Places I want to go",
+            fieldKey: "places_to_go",
+            value: user.places_to_go,
+            placeholder: "Add a dream destination",
+            last: true,
+          })}
         </View>
 
         {/* Personal Info */}
@@ -703,48 +960,46 @@ export default function EditProfile() {
               )
             }
           />
-          <Row
-            icon="home"
-            iconColor="#14B8A6"
-            iconBg="#CCFBF1"
-            label="My Hometown"
-            value={user.hometown}
-            placeholder="Add your hometown"
-            onPress={() => openText("hometown", "My Hometown", user.hometown)}
-          />
-          <Row
-            icon="briefcase"
-            iconColor="#14B8A6"
-            iconBg="#CCFBF1"
-            label="My Occupation"
-            value={user.occupation}
-            placeholder="Add your occupation"
-            onPress={() =>
-              openText("occupation", "My Occupation", user.occupation)
-            }
-          />
-          <Row
-            icon="school"
-            iconColor="#14B8A6"
-            iconBg="#CCFBF1"
-            label="My School"
-            value={user.school}
-            placeholder="Add your school"
-            onPress={() => openText("school", "My School", user.school)}
-            last
-          />
+          {renderInlineRow({
+            icon: "home",
+            iconColor: "#14B8A6",
+            iconBg: "#CCFBF1",
+            label: "My Hometown",
+            fieldKey: "hometown",
+            value: user.hometown,
+            placeholder: "Add your hometown",
+          })}
+          {renderInlineRow({
+            icon: "briefcase",
+            iconColor: "#14B8A6",
+            iconBg: "#CCFBF1",
+            label: "My Occupation",
+            fieldKey: "occupation",
+            value: user.occupation,
+            placeholder: "Add your occupation",
+          })}
+          {renderInlineRow({
+            icon: "school",
+            iconColor: "#14B8A6",
+            iconBg: "#CCFBF1",
+            label: "My School",
+            fieldKey: "school",
+            value: user.school,
+            placeholder: "Add your school",
+            last: true,
+          })}
         </View>
 
         {/* Other */}
         <Text style={styles.sectionHeader}>Other</Text>
         <View style={styles.card}>
-          <Row
-            label="HelloTalk ID"
-            value={user.username ? `@${user.username}` : undefined}
-            placeholder="Set your ID"
-            editText
-            onPress={openUsername}
-          />
+          {renderInlineRow({
+            label: "HelloTalk ID",
+            fieldKey: "username",
+            value: user.username ? `@${user.username}` : undefined,
+            placeholder: "Set your ID",
+            sub: "3–20 chars: lowercase letters, numbers, _ or . · changeable once a month",
+          })}
           <Row
             label="Region"
             value={user.country}
@@ -761,12 +1016,13 @@ export default function EditProfile() {
             placeholder="Choose gender"
             onPress={() => openOptions("gender", "Gender", user.gender, GENDERS)}
           />
-          <Row
-            label="Birthday"
-            value={user.birthday}
-            placeholder="Add your birthday"
-            onPress={openBirthday}
-          />
+          {renderInlineRow({
+            label: "Birthday",
+            fieldKey: "birthday",
+            value: user.birthday,
+            placeholder: "Add your birthday",
+            sub: "Format: YYYY-MM-DD (e.g. 1998-01-01)",
+          })}
           <Row
             label="My Zodiac"
             value={zodiac}
@@ -1081,6 +1337,84 @@ const makeStyles = (colors: ThemeColors) =>
     rowPlaceholder: {
       fontFamily: fonts.text,
       color: colors.onSurfaceSecondary,
+    },
+    inlineInput: {
+      fontFamily: fonts.textBold,
+      fontSize: 16,
+      color: colors.onSurface,
+      backgroundColor: colors.surfaceSecondary,
+      borderWidth: 1.5,
+      borderColor: colors.brand,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginTop: 4,
+      ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+    },
+    inlineTextarea: {
+      minHeight: 84,
+      textAlignVertical: "top",
+      fontFamily: fonts.text,
+      fontSize: 15,
+      lineHeight: 21,
+    },
+    inlineSub: {
+      fontFamily: fonts.text,
+      fontSize: 11.5,
+      color: colors.onSurfaceSecondary,
+      marginTop: 4,
+    },
+    inlineErr: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: colors.error,
+      marginTop: 4,
+    },
+    inlineActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    inlineBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    inlineBtnGhost: {
+      backgroundColor: colors.surfaceTertiary,
+    },
+    voiceRecRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginTop: 4,
+    },
+    voiceRecDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.error,
+    },
+    voiceRecText: {
+      fontFamily: fonts.textSemi,
+      fontSize: 14,
+      color: colors.error,
+    },
+    voiceBubbleWrap: {
+      marginTop: 6,
+      maxWidth: 220,
+    },
+    voiceCircleBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
     },
     rowAccent: {
       width: 34,

@@ -8,8 +8,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from auth_utils import CurrentUser
-from db import follows_col, media_col, notifications_col, profile_visits_col, users_col
-from models import AvatarUpload, UserUpdate, _vip_active, apply_privacy, user_card, user_public
+from db import audio_col, follows_col, media_col, notifications_col, profile_visits_col, users_col
+from models import AvatarUpload, UserUpdate, VoiceMessageCreate, _vip_active, apply_privacy, user_card, user_public
 from routes.push import send_push
 from ws_manager import manager
 
@@ -121,6 +121,44 @@ async def upload_cover(body: AvatarUpload, current_user: CurrentUser):
         {"_id": current_user["_id"]}, {"$set": {"cover_url": cover_url}}
     )
     current_user["cover_url"] = cover_url
+    return user_public(current_user)
+
+
+@router.post("/me/voice-bio")
+async def upload_voice_bio(body: VoiceMessageCreate, current_user: CurrentUser):
+    """Record a voice introduction for the profile bio (max ~60s / 3MB)."""
+    try:
+        audio_bytes = base64.b64decode(body.audio_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid audio data")
+    if len(audio_bytes) > 3 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Audio too large (max 3MB)")
+    audio_id = str(uuid.uuid4())
+    await audio_col.insert_one(
+        {"_id": audio_id, "data": audio_bytes, "mime": body.mime}
+    )
+    duration = min(int(body.duration_ms or 0), 60_000)
+    await users_col.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"voice_bio_id": audio_id, "voice_bio_duration_ms": duration}},
+    )
+    current_user["voice_bio_id"] = audio_id
+    current_user["voice_bio_duration_ms"] = duration
+    return user_public(current_user)
+
+
+@router.delete("/me/voice-bio")
+async def delete_voice_bio(current_user: CurrentUser):
+    """Remove the profile voice introduction."""
+    old_id = current_user.get("voice_bio_id")
+    if old_id:
+        await audio_col.delete_one({"_id": old_id})
+    await users_col.update_one(
+        {"_id": current_user["_id"]},
+        {"$unset": {"voice_bio_id": "", "voice_bio_duration_ms": ""}},
+    )
+    current_user.pop("voice_bio_id", None)
+    current_user.pop("voice_bio_duration_ms", None)
     return user_public(current_user)
 
 
