@@ -19,7 +19,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
-import { DailyPhraseCard } from "@/src/components/DailyPhraseCard";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { LANGUAGES, PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
@@ -373,9 +372,6 @@ export default function Connect() {
           onScroll={onScroll}
           scrollEventThrottle={16}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
-          ListHeaderComponent={
-            <DailyPhraseCard lang={filter !== "match" ? filter : myLearning[0]} />
-          }
           ListEmptyComponent={
             <View style={styles.center}>
               <Ionicons name="earth-outline" size={56} color={colors.borderStrong} />

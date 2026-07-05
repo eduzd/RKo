@@ -560,6 +560,62 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+## Test Run — User Feedback Round 2 (chat scroll fix, revert language chips, remove phrase card)
+user_problem_statement: User reported - (1) profile preview language indicators should go back to the OLD design (code + underline + dots + name below) but with slightly smaller text; (2) chat page has a scrolling problem; (3) remove the Daily Phrase card from Connect.
+
+frontend:
+  - task: "Chat scroll fix - open pinned to newest message, no yank while reading history"
+    implemented: true
+    working: true
+    file: "frontend/app/chat/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Reproduced - chat opened at TOP of history instead of newest message. Fix: stickToEnd ref + onContentSizeChange scrollToEnd(animated false) for reliable initial pinning + onScroll distance-from-bottom tracking (>120px = user reading history, stop auto-snap). Own sends (text/voice/image) re-pin to bottom."
+        - working: true
+          agent: "testing"
+          comment: "PASSED - chat opens at bottom showing newest message (Reply 12), scroll up preserved without yank while new content settles, sending a message snaps back to bottom. Minor: initial render may briefly flash top before pinning (non-blocking)."
+        - working: true
+          agent: "testing"
+          comment: "✅ RE-VERIFIED (3/3 verify points passed). Tested with mei@demo.com on mobile viewport (390x844) with Diego Ramírez conversation (24 seeded messages). VERIFY A ✅: Chat opens pinned at BOTTOM showing newest message 'Reply 12 from Diego — sounds great, keep going!' without manual scrolling. VERIFY B ✅: Scrolled up to middle messages (7-10 visible), waited 3 seconds, list stayed in place with NO auto-jump to bottom. VERIFY C ✅: While scrolled up, typed and sent 'hello scroll test', list immediately snapped to bottom showing new message. All three scroll behaviors working correctly. Console: only minor warning 'props.pointerEvents is deprecated' (non-blocking)."
+  - task: "Revert profile preview language section to old design with smaller text"
+    implemented: true
+    working: true
+    file: "frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Restored LangCol (code + green accent underline for native + proficiency dots + name below). Text sizes reduced per request - langCode 13->11.5, langName 10.5->9.5. Kept the improved labeled stat cells and stat separators."
+        - working: true
+          agent: "testing"
+          comment: "PASSED - language section shows old column design (EN with green underline + English below, JA/KO with dots + names) at smaller sizes."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED on Emma Wilson's profile. Language section displays OLD column style: EN code with green underline + 'English' label below (native), then swap arrow, then JA and KO codes with proficiency dots (small circles 4-5px) + 'Japanese'/'Korean' labels below. Text is small and tidy (langCode 11.5px, langName 9.5px). NOT pill/chip style with flag icons. Stats card below shows labeled cells with icons: 0 Streak, 1 Moments, 0 Followers, 0 Following, 2 Learning, 1 Badges. Design matches OLD column layout exactly as requested."
+  - task: "Remove Daily Phrase card from Connect page"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/connect.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed ListHeaderComponent + import. Backend /api/phrases/daily endpoint kept (unused, harmless). CheckInModal daily reward unchanged."
+        - working: true
+          agent: "testing"
+          comment: "PASSED - no phrase card on Connect; partner list starts immediately."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED on Connect tab. NO 'PHRASE OF THE DAY' gradient card present above partner list. Partner list starts directly with partner cards (6 cards found: Dada, Didi, Demo User, Emma Wilson, Amélie Laurent, etc.). Daily Phrase card successfully removed."
+
 ## Test Run — UI Polish + Daily Phrase + Check-in Rewards (Iteration: brand polish)
 user_problem_statement: Full UI polish pass (HelloTalk-style). New features - Daily Phrase card (Connect), daily streak check-in coin rewards (modal), profile preview language chips redesign, voice empty state polish. Backend adds GET /api/phrases/daily and POST /api/users/me/check-in. NOTE - both .env files were missing at session start; recreated and re-seeded demo data (seed.py).
 
@@ -637,4 +693,8 @@ agent_communication:
       message: "✅ ALL TESTS PASSED (9/9) - VOICE ROOM SHARE-TO-MOMENTS FEATURE FULLY WORKING. Test results: (1) ✅ Room created without share_to_moments - no moment created initially. (2) ✅ Host shared room via POST /api/rooms/{room_id}/share-to-moments - returned 201 with {shared: true}, moment created with is_live=true and correct title. (3) ✅ Second share created second moment - repeatable sharing works (2 moments total for same room). (4) ✅ Non-host (diego) correctly rejected with 403 'Only the host can share this room'. (5) ✅ User B joined room and raised hand - hand_raised=true, role='listener' verified in room details. (6) ✅ Host changed User B role to 'speaker' - role updated and hand_raised reset to false. (7) ✅ Host ended room - both moments now show is_live=false (computed live from room state). (8) ✅ GET /api/moments returns room field with live state computed at read-time via _room_card. (9) ✅ All authorization, state management, and live computation working correctly. NO CRITICAL ISSUES FOUND. Feature ready for production."
     - agent: "testing"
       message: "✅ ALL TESTS PASSED (11/11) - DAILY PHRASE + CHECK-IN REWARDS FULLY WORKING. PART 1 - GET /api/phrases/daily (5/5): (1) Without auth → 401 ✅ (2) ?lang=ja → 200 with all required fields (lang, lang_name, text, roman non-null, meaning, category, date) ✅ (3) ?lang=en → 200 with roman=null ✅ (4) ?lang=zz (invalid) → 200 with fallback to 'en' ✅ (5) No lang param → 200 with fallback to user's learning language ✅. PART 2 - POST /api/users/me/check-in (4/4): (6) Without auth → 401 ✅ (7) Registered new user testuser_1783257090@lingua.app ✅ (8) First check-in → {already_checked_in:false, coins_awarded:15, streak_count:1, coins:1015} ✅ (9) Second check-in same day → {already_checked_in:true, coins_awarded:0, coins:1015} (idempotent) ✅. PART 3 - SMOKE TESTS (2/2): (10) POST /api/auth/login with mei@demo.com → success ✅ (11) GET /api/users/partners → success, returned 5 partners ✅. NO CRITICAL ISSUES FOUND. Both new endpoints working correctly."
+    - agent: "user"
+      message: "Verify 3 UI fixes in the LinguaConnect Expo web app: (1) MOST IMPORTANT - Chat scrolling fix: chat should open at bottom, stay where scrolled when reading history, snap to bottom when sending. Test with Diego Ramírez conversation (24 seeded messages). (2) Connect page: Daily Phrase card removed, partner list starts directly. (3) Profile preview language section reverted to OLD design (code + underline + dots + name below, NOT pill/chip style with flags). Test with Emma Wilson's profile."
+    - agent: "testing"
+      message: "✅ ALL 3 UI FIXES VERIFIED (3/3 passed). Tested on mobile viewport (390x844) with mei@demo.com. TEST 1 (MOST IMPORTANT) - Chat scrolling fix ✅: (A) Chat opens pinned at BOTTOM showing newest message 'Reply 12 from Diego' without manual scrolling. (B) Scrolled up to middle messages (7-10 visible), waited 3 seconds, list stayed in place with NO auto-jump to bottom. (C) While scrolled up, typed and sent 'hello scroll test', list immediately snapped to bottom showing new message. All three scroll behaviors working correctly. TEST 2 - Connect page ✅: NO 'PHRASE OF THE DAY' gradient card present. Partner list starts directly with 6 partner cards. Daily Phrase card successfully removed. TEST 3 - Profile preview ✅: Emma Wilson's profile shows OLD column style language section: EN code with green underline + 'English' label below (native), swap arrow, JA/KO codes with proficiency dots (4-5px circles) + 'Japanese'/'Korean' labels below. Text small and tidy (11.5px/9.5px). NOT pill/chip style with flag icons. Stats card shows labeled cells: Streak, Moments, Followers, Following, Learning, Badges. Console: only minor warning 'props.pointerEvents is deprecated' (non-blocking). NO CRITICAL ISSUES FOUND. All UI fixes working as specified."
 

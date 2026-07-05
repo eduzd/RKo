@@ -17,7 +17,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
-import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
@@ -151,39 +150,26 @@ export default function UserProfile() {
       ? [profile.learning_language]
       : [];
 
-  const LangChip = ({
+  const LangCol = ({
     code,
-    isNative,
+    accent,
     dots,
   }: {
     code?: string | null;
-    isNative?: boolean;
+    accent?: boolean;
     dots?: number;
   }) => (
-    <View
-      style={[
-        styles.langChip,
-        isNative ? styles.langChipNative : styles.langChipLearning,
-      ]}
-    >
-      <FlagIcon code={code} size={16} />
-      <Text
-        style={[styles.langChipName, isNative && styles.langChipNameNative]}
-        numberOfLines={1}
-      >
-        {langName(code)}
-      </Text>
-      {isNative ? (
-        <View style={styles.nativeTag}>
-          <Text style={styles.nativeTagText}>Native</Text>
-        </View>
-      ) : typeof dots === "number" ? (
+    <View style={styles.langCol}>
+      <Text style={styles.langCode}>{(code || "").toUpperCase()}</Text>
+      {accent ? <View style={styles.langAccent} /> : null}
+      {typeof dots === "number" ? (
         <View style={styles.dotsRow}>
           {[0, 1, 2, 3, 4].map((i) => (
             <View key={i} style={[styles.dot, i < dots && styles.dotFilled]} />
           ))}
         </View>
       ) : null}
+      <Text style={styles.langName}>{langName(code)}</Text>
     </View>
   );
 
@@ -316,16 +302,17 @@ export default function UserProfile() {
 
           {/* Languages */}
           <View style={styles.langRow}>
-            <LangChip code={profile.native_language} isNative />
-            <View style={styles.swapCircle}>
-              <Ionicons
-                name="swap-horizontal"
-                size={13}
-                color={colors.onSurfaceSecondary}
-              />
-            </View>
+            <LangCol code={profile.native_language} accent />
+            <Ionicons
+              name="swap-horizontal"
+              size={16}
+              color={colors.onSurfaceSecondary}
+              style={{ marginHorizontal: spacing.md }}
+            />
             {learningList.slice(0, 3).map((c, i) => (
-              <LangChip key={c} code={c} dots={i === 0 ? dotsFilled : 1} />
+              <View key={c} style={{ marginRight: spacing.md }}>
+                <LangCol code={c} dots={i === 0 ? dotsFilled : 1} />
+              </View>
             ))}
           </View>
 
@@ -751,56 +738,27 @@ const makeStyles = (colors: ThemeColors) =>
     },
     langRow: {
       flexDirection: "row",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 6,
+      alignItems: "flex-start",
     },
-    langChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.sm + 2,
-      paddingVertical: 5,
+    langCol: {
+      alignItems: "flex-start",
     },
-    langChipNative: {
-      backgroundColor: colors.brandTertiary,
-    },
-    langChipLearning: {
-      backgroundColor: colors.surfaceSecondary,
-    },
-    langChipName: {
+    langCode: {
       fontFamily: fonts.textBold,
-      fontSize: 12.5,
+      fontSize: 11.5,
       color: colors.onSurface,
-      maxWidth: 92,
     },
-    langChipNameNative: {
-      color: colors.onBrandTertiary,
-    },
-    nativeTag: {
+    langAccent: {
+      width: "100%",
+      height: 3,
+      borderRadius: 2,
       backgroundColor: colors.success,
-      borderRadius: radius.pill,
-      paddingHorizontal: 6,
-      paddingVertical: 1.5,
-    },
-    nativeTagText: {
-      fontFamily: fonts.textBold,
-      fontSize: 9,
-      color: "#FFFFFF",
-      letterSpacing: 0.3,
-    },
-    swapCircle: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: colors.surfaceSecondary,
-      alignItems: "center",
-      justifyContent: "center",
+      marginTop: 2,
     },
     dotsRow: {
       flexDirection: "row",
-      gap: 2.5,
+      gap: 3,
+      marginTop: 4,
     },
     dot: {
       width: 4.5,
@@ -810,6 +768,12 @@ const makeStyles = (colors: ThemeColors) =>
     },
     dotFilled: {
       backgroundColor: colors.brand,
+    },
+    langName: {
+      fontFamily: fonts.text,
+      fontSize: 9.5,
+      color: colors.onSurfaceSecondary,
+      marginTop: 3,
     },
     statLine: {
       flexDirection: "row",

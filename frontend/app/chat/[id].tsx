@@ -128,6 +128,9 @@ export default function ChatScreen() {
     null,
   );
   const listRef = useRef<FlatList<Message>>(null);
+  // Keeps the list pinned to the newest message. True until the reader
+  // scrolls up to browse history, so we never yank them back down.
+  const stickToEnd = useRef(true);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
@@ -177,7 +180,7 @@ export default function ChatScreen() {
   );
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && stickToEnd.current) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [messages.length]);
@@ -195,6 +198,7 @@ export default function ChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const msg = await api.post<Message>(`/chats/${id}/messages`, { text });
+      stickToEnd.current = true;
       setMessages((prev) => [...prev, msg]);
       setDraft("");
     } finally {
@@ -283,6 +287,7 @@ export default function ChatScreen() {
         mime,
         duration_ms: Math.max(durationMs, 1000),
       });
+      stickToEnd.current = true;
       setMessages((prev) => [...prev, msg]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -325,6 +330,7 @@ export default function ChatScreen() {
         image_base64: asset.base64,
         mime: asset.mimeType || "image/jpeg",
       });
+      stickToEnd.current = true;
       setMessages((prev) => [...prev, msg]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -727,6 +733,24 @@ export default function ChatScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messageList}
             ListHeaderComponent={partnerCard}
+            onContentSizeChange={() => {
+              // Fires whenever bubbles/avatars/images finish measuring, so
+              // the chat reliably opens pinned to the newest message.
+              if (stickToEnd.current) {
+                listRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
+            onScroll={(e) => {
+              const { contentOffset, contentSize, layoutMeasurement } =
+                e.nativeEvent;
+              const distanceFromBottom =
+                contentSize.height -
+                layoutMeasurement.height -
+                contentOffset.y;
+              // Reading history? Stop auto-snapping until back near the end.
+              stickToEnd.current = distanceFromBottom < 120;
+            }}
+            scrollEventThrottle={32}
             ListEmptyComponent={
               <View style={styles.center}>
                 <Ionicons name="hand-left-outline" size={48} color={colors.borderStrong} />
