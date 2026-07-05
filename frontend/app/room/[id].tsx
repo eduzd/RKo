@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -433,7 +433,11 @@ export default function RoomScreen() {
         </View>
         {member.hand_raised && (
           <View style={styles.handBadge}>
-            <Ionicons name="hand-left" size={11} color="#FFF" />
+            <MaterialCommunityIcons
+              name="human-greeting-variant"
+              size={12}
+              color="#FFF"
+            />
           </View>
         )}
         {member.role === "host" && (
@@ -467,7 +471,11 @@ export default function RoomScreen() {
       />
       {member.hand_raised && (
         <View style={styles.handBadgeSmall}>
-          <Ionicons name="hand-left" size={9} color="#FFF" />
+          <MaterialCommunityIcons
+            name="human-greeting-variant"
+            size={10}
+            color="#FFF"
+          />
         </View>
       )}
       <Text style={styles.listenerName} numberOfLines={1}>
@@ -569,7 +577,11 @@ export default function RoomScreen() {
             onPress={() => setHandModalOpen(true)}
           >
             <View style={styles.handNotifyIconWrap}>
-              <Ionicons name="hand-left" size={15} color="#FFFFFF" />
+              <MaterialCommunityIcons
+                name="human-greeting-variant"
+                size={16}
+                color="#FFFFFF"
+              />
               <View style={styles.handNotifyBadge}>
                 <Text style={styles.handNotifyBadgeText}>{handRequests.length}</Text>
               </View>
@@ -768,11 +780,19 @@ export default function RoomScreen() {
                 ]}
                 onPress={isSpeaker ? toggleMic : toggleHand}
               >
-                <Ionicons
-                  name={isSpeaker ? (me?.mic_on ? "mic" : "mic-off") : "hand-left"}
-                  size={22}
-                  color="#FFFFFF"
-                />
+                {isSpeaker ? (
+                  <Ionicons
+                    name={me?.mic_on ? "mic" : "mic-off"}
+                    size={22}
+                    color="#FFFFFF"
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="human-greeting-variant"
+                    size={24}
+                    color="#FFFFFF"
+                  />
+                )}
               </Pressable>
             </View>
           </View>
@@ -1078,7 +1098,11 @@ export default function RoomScreen() {
                       {m.id === user?.id ? "You" : m.name}
                     </Text>
                     {m.hand_raised && (
-                      <Ionicons name="hand-left" size={16} color="#FBBF24" />
+                      <MaterialCommunityIcons
+                        name="human-greeting-variant"
+                        size={17}
+                        color="#FBBF24"
+                      />
                     )}
                   </Pressable>
                 ))}
