@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -41,12 +40,7 @@ const QUICK_REPLIES = [
 
 // Solid, uniform room backgrounds (single colour top-to-bottom so the
 // device status bar area blends in and stays readable).
-const BG_GRADIENTS: [string, string][] = [
-  ["#413389", "#413389"],
-  ["#1E293B", "#1E293B"],
-  ["#4A1D6E", "#4A1D6E"],
-  ["#153A44", "#153A44"],
-];
+const BG_COLORS: string[] = ["#413389", "#1E293B", "#4A1D6E", "#153A44"];
 
 const STAGE_SEATS = 8;
 const MAX_LISTENERS_SHOWN = 6;
@@ -399,12 +393,12 @@ export default function RoomScreen() {
 
   if (loading || !room) {
     return (
-      <LinearGradient colors={BG_GRADIENTS[bgIndex]} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: BG_COLORS[bgIndex] }]}>
         <StatusBar style="light" />
         <SafeAreaView style={styles.center}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -496,7 +490,7 @@ export default function RoomScreen() {
   );
 
   return (
-    <LinearGradient colors={BG_GRADIENTS[bgIndex]} style={styles.container}>
+    <View style={[styles.container, { backgroundColor: BG_COLORS[bgIndex] }]}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]} testID="room-screen">
         <View style={styles.header}>
@@ -623,7 +617,7 @@ export default function RoomScreen() {
               contentContainerStyle={styles.chatList}
               ListHeaderComponent={
                 <View style={styles.noticeRow} testID="room-notice">
-                  <View style={styles.noticeIconCircle}>
+                  <View style={styles.noticeIconCircle} testID="room-notice-icon">
                     <Ionicons name="megaphone" size={15} color="#FFFFFF" />
                   </View>
                   <View style={styles.noticeBubble}>
@@ -926,7 +920,7 @@ export default function RoomScreen() {
               <Pressable
                 style={styles.menuRow}
                 testID="room-bg-btn"
-                onPress={() => setBgIndex((i) => (i + 1) % BG_GRADIENTS.length)}
+                onPress={() => setBgIndex((i) => (i + 1) % BG_COLORS.length)}
               >
                 <Ionicons name="color-palette-outline" size={18} color="#FFFFFF" />
                 <Text style={styles.menuText}>Change background</Text>
@@ -1111,7 +1105,7 @@ export default function RoomScreen() {
           </Pressable>
         </Modal>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -1422,10 +1416,8 @@ const makeStyles = () =>
     },
     chatSection: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.18)",
-      borderTopLeftRadius: radius.lg,
-      borderTopRightRadius: radius.lg,
-      overflow: "hidden",
+      // Same colour as the room background — one uniform tone everywhere.
+      backgroundColor: "transparent",
       position: "relative",
     },
     chatList: {

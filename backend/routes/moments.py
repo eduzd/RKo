@@ -72,8 +72,17 @@ async def _room_card(room_id: str | None) -> dict | None:
     if not room_id:
         return None
     room_doc = await rooms_col.find_one({"_id": room_id})
-    if not room_doc or not room_doc.get("is_live"):
+    if not room_doc:
         return {"id": room_id, "is_live": False}
+    if not room_doc.get("is_live"):
+        # Room has ended — keep the title/topic so the card stays meaningful.
+        return {
+            "id": room_id,
+            "title": room_doc.get("title"),
+            "topic": room_doc.get("topic"),
+            "language": room_doc.get("language"),
+            "is_live": False,
+        }
     return {
         "id": room_doc["_id"],
         "title": room_doc["title"],
