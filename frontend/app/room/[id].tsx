@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -38,11 +39,13 @@ const QUICK_REPLIES = [
   "I'm new here!",
 ];
 
+// Solid, uniform room backgrounds (single colour top-to-bottom so the
+// device status bar area blends in and stays readable).
 const BG_GRADIENTS: [string, string][] = [
-  ["#2A2154", "#4B3F87"],
-  ["#1E293B", "#334155"],
-  ["#3B0764", "#701A75"],
-  ["#0F2027", "#2C5364"],
+  ["#413389", "#413389"],
+  ["#1E293B", "#1E293B"],
+  ["#4A1D6E", "#4A1D6E"],
+  ["#153A44", "#153A44"],
 ];
 
 const STAGE_SEATS = 8;
@@ -397,6 +400,7 @@ export default function RoomScreen() {
   if (loading || !room) {
     return (
       <LinearGradient colors={BG_GRADIENTS[bgIndex]} style={styles.container}>
+        <StatusBar style="light" />
         <SafeAreaView style={styles.center}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </SafeAreaView>
@@ -493,6 +497,7 @@ export default function RoomScreen() {
 
   return (
     <LinearGradient colors={BG_GRADIENTS[bgIndex]} style={styles.container}>
+      <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]} testID="room-screen">
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -617,14 +622,19 @@ export default function RoomScreen() {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.chatList}
               ListHeaderComponent={
-                <View style={styles.noticeBubble} testID="room-notice">
-                  <View style={styles.noticeIconWrap}>
-                    <Ionicons name="megaphone" size={13} color="#FFFFFF" />
+                <View style={styles.noticeRow} testID="room-notice">
+                  <View style={styles.noticeIconCircle}>
+                    <Ionicons name="megaphone" size={15} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.noticeText}>
-                    Please speak the room&apos;s language and keep it friendly —
-                    enjoy practicing together! 🎉
-                  </Text>
+                  <View style={styles.noticeBubble}>
+                    <View style={styles.noticePill}>
+                      <Text style={styles.noticePillText}>Notice</Text>
+                    </View>
+                    <Text style={styles.noticeText}>
+                      Please speak the room&apos;s language and keep it friendly —
+                      enjoy practicing together! 🎉
+                    </Text>
+                  </View>
                 </View>
               }
               ListEmptyComponent={
@@ -633,8 +643,13 @@ export default function RoomScreen() {
               renderItem={({ item }) => {
                 if (item.type === "system") {
                   return (
-                    <View style={styles.systemRow} testID={`room-msg-${item.id}`}>
-                      <Text style={styles.systemText}>{item.text}</Text>
+                    <View style={styles.noticeRow} testID={`room-msg-${item.id}`}>
+                      <View style={styles.noticeIconCircle}>
+                        <Ionicons name="megaphone" size={15} color="#FFFFFF" />
+                      </View>
+                      <View style={[styles.noticeBubble, styles.systemBubble]}>
+                        <Text style={styles.noticeText}>{item.text}</Text>
+                      </View>
                     </View>
                   );
                 }
@@ -644,7 +659,8 @@ export default function RoomScreen() {
                       <Avatar
                         name={item.sender?.name}
                         url={item.sender?.avatar_url}
-                        size={22}
+                        size={26}
+                        flagCode={countryToCode(item.sender?.country)}
                       />
                       <Text style={styles.giftText}>
                         <Text style={styles.giftSender}>{item.sender?.name} </Text>
@@ -653,18 +669,27 @@ export default function RoomScreen() {
                     </View>
                   );
                 }
+                const fromHost = !!host && item.sender?.id === host.id;
                 return (
                   <View style={styles.chatRow} testID={`room-msg-${item.id}`}>
                     <Avatar
                       name={item.sender?.name}
                       url={item.sender?.avatar_url}
-                      size={24}
+                      size={30}
+                      flagCode={countryToCode(item.sender?.country)}
                     />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.chatText}>
-                        <Text style={styles.chatSender}>{item.sender?.name}  </Text>
-                        {item.text}
-                      </Text>
+                    <View style={styles.chatBubbleCol}>
+                      <View style={styles.chatBubble}>
+                        {fromHost && (
+                          <View style={styles.hostChip}>
+                            <Ionicons name="home" size={9} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <Text style={styles.chatText}>
+                          <Text style={styles.chatSender}>{item.sender?.name}:  </Text>
+                          {item.text}
+                        </Text>
+                      </View>
                       {translations[item.id] ? (
                         <Text style={styles.translatedText}>
                           🌐 {translations[item.id]}
@@ -764,7 +789,7 @@ export default function RoomScreen() {
               placeholder={
                 room.chat_muted && !isHost
                   ? "Chat muted by host"
-                  : "Message the room..."
+                  : "Comment..."
               }
               placeholderTextColor="rgba(255,255,255,0.45)"
               value={draft}
@@ -1409,30 +1434,51 @@ const makeStyles = () =>
       flexGrow: 1,
       paddingRight: 56,
     },
-    noticeBubble: {
+    noticeRow: {
       flexDirection: "row",
       alignItems: "flex-start",
       gap: spacing.sm,
-      backgroundColor: "rgba(255,255,255,0.1)",
-      borderRadius: radius.md,
-      padding: spacing.sm + 2,
       marginBottom: spacing.sm,
     },
-    noticeIconWrap: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: "rgba(255,255,255,0.16)",
+    noticeIconCircle: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: "#7C6BF0",
       alignItems: "center",
       justifyContent: "center",
       marginTop: 1,
     },
+    noticeBubble: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: spacing.sm,
+      backgroundColor: "rgba(0,0,0,0.28)",
+      borderRadius: radius.md,
+      padding: spacing.sm + 4,
+    },
+    systemBubble: {
+      backgroundColor: "rgba(0,0,0,0.2)",
+    },
+    noticePill: {
+      backgroundColor: "rgba(124,107,240,0.45)",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginTop: 1,
+    },
+    noticePillText: {
+      fontFamily: fonts.textBold,
+      fontSize: 11,
+      color: "#E0E7FF",
+    },
     noticeText: {
       flex: 1,
       fontFamily: fonts.text,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "rgba(255,255,255,0.8)",
+      fontSize: 12.5,
+      lineHeight: 18,
+      color: "rgba(255,255,255,0.88)",
     },
     chatEmpty: {
       fontFamily: fonts.text,
@@ -1475,11 +1521,35 @@ const makeStyles = () =>
       gap: spacing.sm,
       alignItems: "flex-start",
     },
+    chatBubbleCol: {
+      flex: 1,
+      alignItems: "flex-start",
+    },
+    chatBubble: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 5,
+      backgroundColor: "rgba(0,0,0,0.28)",
+      borderRadius: 16,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 7,
+      maxWidth: "100%",
+    },
+    hostChip: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: "#7C6BF0",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2,
+    },
     chatSender: {
       fontFamily: fonts.textBold,
       color: "#C4B5FD",
     },
     chatText: {
+      flexShrink: 1,
       fontFamily: fonts.text,
       fontSize: 13.5,
       lineHeight: 19,
@@ -1517,9 +1587,10 @@ const makeStyles = () =>
       justifyContent: "center",
     },
     floatBtn: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
+      width: 48,
+      height: 48,
+      // Rounded square, HelloTalk-style hand-raise button.
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
       shadowColor: "#000",
@@ -1531,7 +1602,7 @@ const makeStyles = () =>
       backgroundColor: "#22C55E",
     },
     micOff: {
-      backgroundColor: "#6D5AE8",
+      backgroundColor: "rgba(255,255,255,0.22)",
     },
     handActive: {
       backgroundColor: "#FBBF24",
@@ -1570,10 +1641,10 @@ const makeStyles = () =>
     },
     input: {
       flex: 1,
-      backgroundColor: "rgba(255,255,255,0.14)",
-      borderRadius: radius.lg,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      backgroundColor: "rgba(0,0,0,0.28)",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm + 2,
       fontFamily: fonts.text,
       fontSize: 13.5,
       color: "#FFFFFF",
@@ -1581,11 +1652,13 @@ const makeStyles = () =>
     inputFocused: {
       paddingVertical: spacing.md,
       fontSize: 14.5,
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: "rgba(0,0,0,0.38)",
     },
     iconBtn: {
-      width: 34,
-      height: 34,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: "rgba(0,0,0,0.28)",
       alignItems: "center",
       justifyContent: "center",
       position: "relative",

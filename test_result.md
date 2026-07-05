@@ -574,6 +574,25 @@ agent_communication:
     - agent: "testing"
       message: "✅ PARTNER CARD TAGS FIX VERIFIED - ALL TESTS PASSED (8 cards, 0 failures). Tested on mobile viewport (390x844) with mei@demo.com. Scrolled through ALL partner cards: Didi, Bhh, Gigi, Didi, Demo User, Emma Wilson, Amélie Laurent, Yuki Tanaka. VERIFICATION RESULTS: (1) ✅ ALL tags on SINGLE horizontal row - measured y-coordinates for all cards with multiple tags show 0.00px difference (perfect alignment). Cards tested: Didi (2 tags, y-diff:0.00px), Bhh (2 tags, y-diff:0.00px), Demo User (2 tags, y-diff:0.00px), Yuki Tanaka (2 tags, y-diff:0.00px). (2) ✅ Long labels truncate with ellipsis - screenshots show 'Loves Fitne...', 'Language exchan...', 'Similar intere...' with proper truncation. (3) ✅ NO wrapping detected - 7 cards with tags all PASSED, 1 card with no tags. (4) ✅ No horizontal overflow outside cards. (5) ✅ No console errors - only minor font loading failures (non-critical) and 'props.pointerEvents is deprecated' warning (non-blocking). Screenshots captured at top/middle/bottom of list as evidence. FIX WORKING PERFECTLY. Ready for main agent to summarize and finish."
 
+## Test Run — User Feedback Round 7 (voice room HelloTalk-style redesign)
+user_problem_statement: Voice room screen must match HelloTalk reference screenshot - (1) ONE uniform solid background colour (no two-tone gradient) with device status bar readable (light content); (2) announcements/official messages show a megaphone icon circle on the LEFT + dark bubble with "Notice" pill; (3) user chat messages show avatar WITH round flag + name + text inside dark pill bubble, host gets home chip; (4) hand-raise button stays on the RIGHT as rounded square; (5) "Comment..." pill input with circular dark icon buttons (chat toggle, grid+NEW, shop, gift).
+
+frontend:
+  - task: "Voice room redesign - solid bg, Notice bubble, flag avatars in chat, rounded-square hand btn, Comment input"
+    implemented: true
+    working: false
+    file: "frontend/app/room/[id].tsx"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "BG_GRADIENTS now solid single colours (#413389 default); StatusBar style=light on room screen; notice row = purple megaphone circle + dark bubble + Notice pill (system messages use same layout); chat rows: Avatar size 30 with flagCode + dark pill bubble + host home chip; gift rows avatar has flag too; floatBtn 48px radius 14 translucent (hand) / green (mic on); input placeholder 'Comment...' pill style; icon buttons 38px circles rgba(0,0,0,0.28). Verified via screenshots - matches reference."
+        - working: false
+          agent: "testing"
+          comment: "TESTED on mobile viewport (390x844) with mei@demo.com in 'Mandarin Practice Lounge' room. RESULTS: ❌ VERIFY A FAILED - Background has gradient banding (detected 2 color stops, not solid uniform color). Code shows BG_GRADIENTS array with duplicate colors like ['#413389', '#413389'] but LinearGradient component still renders as gradient. ❌ VERIFY B FAILED - Megaphone icon not detected in Notice row (Notice pill present but icon detection failed). ✅ VERIFY C PASSED - Chat message 'Hello everyone!' shows avatar with flag + dark pill bubble + 'Mei Lin:' name. Input placeholder correctly reads 'Comment...'. ✅ VERIFY D PASSED - All bottom controls present: rounded-square mic button (48px, radius 14) bottom-right, circular dark icon buttons (chat-mute toggle, grid+NEW badge, shop, gift). ✅ VERIFY E PASSED - Quick replies row visible with 4 items ('Hey, everyone! 👋', 'What's the topic?', 'Nice to meet you!', 'I'm new here!') and X close button working. CRITICAL ISSUE: Background gradient needs fix - LinearGradient with same start/end colors still creates gradient effect. Suggest using solid backgroundColor instead of LinearGradient component."
+
 ## Test Run — User Feedback Round 6 (inline profile editing, voice bio, feed-style profile moments)
 user_problem_statement: (1) Edit Profile - text fields must edit INLINE in the row (no modal/sheet opening) - name, bio, hometown, occupation, school, places_to_go, username, birthday. Pickers (MBTI/blood/gender/languages/interests) still use the sheet. (2) Users can record a VOICE INTRODUCTION for their profile bio - record/play/re-record/delete in Edit Profile, playable bubble on profile preview. (3) Profile preview Moments tab must render posts exactly like the main Moments feed - including the voice-room share card (RoomMomentCard), lang flags header, like/comment/translate actions, LikersRow.
 
@@ -596,47 +615,57 @@ backend:
 frontend:
   - task: "Edit Profile - inline text editing (no modal for text fields)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/edit-profile.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "renderInlineRow render-function: tap row/pencil -> TextInput appears in place with check (save) and X (cancel) buttons. Username strips @, birthday validates YYYY-MM-DD inline. testIDs: inline-row-{field}, inline-input-{field}, inline-save-{field}, inline-cancel-{field}."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL TESTS PASSED (3/3). Tested on mobile viewport (390x844) at /edit-profile. TEST 1 - Name inline editing: Tapped Name row (inline-row-name), TextInput appeared IN PLACE within row (inline-input-name, no modal), typed 'Mei Lin', clicked save (inline-save-name), input returned to read mode. ✅ PASSED. TEST 2 - Hometown inline editing: Tapped Hometown row (inline-row-hometown), TextInput appeared IN PLACE (inline-input-hometown, no modal), typed 'Shanghai', clicked save (inline-save-hometown), value saved and displayed correctly. ✅ PASSED. TEST 3 - MBTI picker (not inline): Tapped 'My MBTI' row, bottom-sheet picker modal opened (NOT inline) with MBTI chips (INTJ, ENTP, INFP all present), closed with Cancel. ✅ PASSED. Inline text editing working correctly - text fields edit in place, pickers use bottom-sheet."
   - task: "Voice introduction record/play/delete in Edit Profile + playback on user profile"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/edit-profile.tsx, frontend/app/user/[id].tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Voice Introduction row in About Me card: mic button records (expo-audio), stop uploads to /users/me/voice-bio, VoiceBubble playback, trash deletes, mic re-records. Profile preview shows VoiceBubble under bio when voice_bio_id present (testID profile-voice-bio). Seeded voice bio + a shared room moment for mei@demo.com."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL TESTS PASSED (2/2). TEST 1 - Edit Profile Voice Controls: On /edit-profile 'Voice Introduction' row, found voice bio bubble (voice-bio-bubble) with play button + 0:05 duration, delete button (voice-bio-delete-btn) with trash icon, and re-record mic button (voice-bio-rerecord-btn). All 3 controls visible and accessible. ✅ PASSED. TEST 2 - Profile Preview Voice Bubble: Clicked Preview button, navigated to profile preview, voice bubble (profile-voice-bio) visible under bio with playback controls. ✅ PASSED. Voice introduction feature fully functional."
   - task: "Profile Moments tab - feed-style cards with RoomMomentCard"
     implemented: true
-    working: "NA"
+    working: false
     file: "frontend/app/user/[id].tsx"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Moments tab now mirrors feed card: avatar+name+VIP+flag row+time header, text, RoomMomentCard for room shares (join on tap), 220px image, like toggle/comment/translate actions, LikersRow."
+        - working: false
+          agent: "testing"
+          comment: "TESTED on profile preview /user/{id} Moments tab. RESULTS: ✅ Feed-style cards present (2 moment cards found) with avatar+name+VIP+flag+time header matching main Moments feed design. ✅ Like button works - clicked heart (profile-moment-like-), count incremented from 0 to 1. ❌ CRITICAL ISSUE: Room card title incorrect. Expected 'Mandarin Practice Lounge' but shows 'ROOM ENDEDVoice room0 were in this room'. Room card (profile-moment-room-card-) is present but displays ended room text instead of live room title. This suggests RoomMomentCard component is not rendering room title correctly when room is ended, or moment is referencing wrong room data. Need to fix room card title display to show actual room name even for ended rooms."
 
 metadata:
   created_by: "main_agent"
-  version: "1.11"
-  test_sequence: 10
-  run_ui: false
+  version: "1.12"
+  test_sequence: 11
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "POST /api/users/me/voice-bio + DELETE /api/users/me/voice-bio"
+    - "Voice room redesign - solid bg, Notice bubble, flag avatars in chat, rounded-square hand btn, Comment input"
+    - "Profile Moments tab - feed-style cards with RoomMomentCard"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -646,6 +675,8 @@ agent_communication:
       message: "Test the NEW voice-bio backend endpoints of LinguaConnect (FastAPI at localhost:8001, /api prefix). See /app/test_result.md section 'User Feedback Round 6'. Credentials: mei@demo.com / Demo1234! (or register a fresh user). (1) POST /api/users/me/voice-bio - Without auth → 401/403, With auth + valid base64 → 200 with voice_bio_id and duration, Invalid base64 → 400, duration_ms above 60000 gets capped to 60000, GET /api/audio/{voice_bio_id} returns audio bytes, GET /api/users/{user_id} includes voice_bio_id + duration. (2) DELETE /api/users/me/voice-bio - With auth → 200 with voice_bio_id null, GET /api/audio/{old_voice_bio_id} returns 404. (3) Smoke: PUT /api/users/me {hometown:'TestTown'} still works, GET /api/auth/me includes hometown update, POST /api/users/me/check-in returns valid shape. NOTE: use a freshly registered user for the flow so you don't destroy mei's seeded voice bio (mei's voice bio is needed for frontend testing — do NOT delete mei's voice bio). Update test_result.md with results. Do NOT test frontend."
     - agent: "testing"
       message: "✅ ALL BACKEND TESTS PASSED (11/11). Voice bio endpoints working perfectly. Test summary: (1) POST /api/users/me/voice-bio without auth correctly returns 401 ✅ (2) With valid auth + base64 audio returns 200 with voice_bio_id (UUID) and voice_bio_duration_ms=5000 ✅ (3) Invalid base64 correctly returns 400 ✅ (4) Duration capping works: 75000ms → 60000ms ✅ (5) GET /api/audio/{voice_bio_id} returns audio bytes with correct mime type (audio/webm) ✅ (6) GET /api/users/{user_id} (as another authed user) includes voice_bio_id and voice_bio_duration_ms ✅ (7) DELETE /api/users/me/voice-bio returns 200 with voice_bio_id null/absent ✅ (8) GET /api/audio/{old_voice_bio_id} after deletion returns 404 (audio doc deleted from DB) ✅ (9) Smoke test: PUT /api/users/me {hometown:'TestTown'} works correctly ✅ (10) Smoke test: GET /api/auth/me includes hometown update ✅ (11) Smoke test: POST /api/users/me/check-in returns valid shape with all required fields ✅. Used fresh test user (voicebio_test_*@lingua.app) to preserve mei's voice bio. Verified mei's voice bio remains intact (voice_bio_id: 25c64fd6-518d-46a2-ab8a-a1a4444c15fa, duration: 5000ms). No critical issues found. Backend voice bio feature fully functional. Ready for main agent to summarize and finish."
+    - agent: "testing"
+      message: "✅ COMPREHENSIVE UI TESTING COMPLETED (9/12 tests passed, 3 failed). Tested on mobile viewport (390x844) with mei@demo.com / Demo1234!. SUMMARY: TEST 1 (Voice Room Redesign - HIGHEST PRIORITY): ❌ 2 FAILED, ✅ 3 PASSED. VERIFY A FAILED - Background has gradient banding (2 color stops), not solid uniform. VERIFY B FAILED - Megaphone icon not detected in Notice row. VERIFY C PASSED - Chat messages show avatar+flag+dark bubble+name+host chip. VERIFY D PASSED - All bottom controls correct (rounded-square mic button, circular icon buttons with NEW badge). VERIFY E PASSED - Quick replies with X button working. TEST 2 (Edit Profile Inline Editing): ✅ ALL 3 PASSED. Name/Hometown inline editing works (TextInput appears IN PLACE, no modal). MBTI opens bottom-sheet picker (not inline). TEST 3 (Voice Introduction): ✅ PASSED. Voice bio bubble with play+delete+rerecord buttons all visible. TEST 4 (Profile Preview): ✅ 2 PASSED, ❌ 1 FAILED. VERIFY A PASSED - Voice bubble under bio. VERIFY B FAILED - Room card shows 'ROOM ENDEDVoice room0 were in this room' instead of 'Mandarin Practice Lounge'. VERIFY C PASSED - Like button increments count. CRITICAL ISSUES: (1) Voice room background uses LinearGradient with duplicate colors but still renders gradient - need solid backgroundColor instead. (2) Room card title incorrect for ended rooms on profile moments."
 
 
 ## Test Run — User Feedback Round 5 (visitors box with avatar stack + admin dashboard verification)
