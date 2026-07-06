@@ -9,7 +9,7 @@ import uuid
 import requests
 from playwright.async_api import async_playwright, Dialog
 
-BASE = "https://design-system-update-10.preview.emergentagent.com"
+BASE = "https://audio-user-options.preview.emergentagent.com"
 API = BASE + "/api"
 
 DEMO = ("demo@demo.com", "Demo1234!")
