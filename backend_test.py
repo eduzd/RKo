@@ -10,7 +10,7 @@ import sys
 import time
 
 # Backend URL from frontend/.env
-BASE_URL = "https://edf855b1-a946-4795-a4f1-66392dbb697e.preview.emergentagent.com/api"
+BASE_URL = "https://workout-hub-1428.preview.emergentagent.com/api"
 
 # Test credentials - using a fresh user to avoid destroying mei's voice bio
 TEST_EMAIL = f"voicebio_test_{int(time.time())}@lingua.app"

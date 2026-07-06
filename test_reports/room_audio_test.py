@@ -10,7 +10,7 @@ import re
 import time
 from playwright.async_api import async_playwright
 
-BASE = "https://ui-feature-check.preview.emergentagent.com"
+BASE = "https://workout-hub-1428.preview.emergentagent.com"
 
 
 async def login(page, email, password):
