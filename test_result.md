@@ -419,6 +419,10 @@ agent_communication:
       message: "✅ VOICE ROOM + MOMENTS INTEGRATION TESTS COMPLETED (8/9 passed, 1 CRITICAL BUG found). PASSED: (1) Gift catalog returns 4 gifts with correct prices ✅ (2) Room creation with share_to_moments creates moment ✅ (3) Rooms list includes all required fields ✅ (4) Moment shows live room with is_live=true ✅ (5) Room ending works ✅ (6) Moment reflects room ended (is_live=false) ✅ (7) Private rooms don't create moments ✅ (8) Chat mute blocks non-host, allows host ✅. FAILED: (9) Gift sending top_gifters logic INCORRECT ❌. CRITICAL BUG DETAILS: When User A sends gift to User B, top_gifters shows User B (recipient) instead of User A (sender). Root cause: /app/backend/routes/rooms.py line 419 increments gift_totals for recipient (to_user_id) instead of sender (current_user['_id']). FIX: Change line 419 from '$inc': {f'gift_totals.{body.to_user_id}': gift['price']} to '$inc': {f'gift_totals.{current_user[\"_id\"]}': gift['price']}. This is a logic error - top_gifters should track who SENT gifts, not who RECEIVED them."
     - agent: "testing"
       message: "✅ VOICE ROOM GIFT FEATURE RE-TEST COMPLETED - ALL TESTS PASSED (7/7). The previously reported 'bug' was actually a DESIGN CHANGE. The field was renamed from 'top_gifters' to 'most_gifted' and now intentionally tracks who RECEIVED gifts (not who sent them). This is a 'who's most celebrated in this room' leaderboard, similar to live-streaming apps. Test results: (1) mei@demo.com login ✅ (2) diego@demo.com login ✅ (3) Mei creates room ✅ (4) Diego joins ✅ (5) Diego sends rose (10 coins) to Mei - coins deducted correctly, gift message with type='gift' returned ✅ (6) most_gifted array contains Mei (RECIPIENT) with 10 coins, NOT Diego (sender) ✅ (7) Gift catalog returns 4 gifts ✅. DESIGN INTENT VERIFIED: most_gifted correctly tracks gift RECIPIENTS for celebration leaderboard. No bugs found. Feature working as intended."
+    - agent: "user"
+      message: "Test new Voice Room three-dot menu feature. Login with demo@demo.com / Demo1234!. Navigate to Voice tab, create room (HOST flow) or join existing room (AUDIENCE flow). Test HOST menu: tap three-dot icon → verify 4 rows (Share, Minimize, Leave, Close red text) + purple Cancel pill → test Cancel (closes, stays in room) → test Minimize (navigates back, floating bubble with red LIVE dot appears) → tap bubble (restores room) → test Leave (exits, no bubble). Test AUDIENCE menu: tap three-dot icon → verify 3 icon buttons (Minimize, Switch room, Leave red power icon) + Recommended section with room list or 'No other rooms' text → test Minimize (bubble appears) → test Leave (exits). Report if menus render correctly, bubble behavior, any console errors."
+    - agent: "testing"
+      message: "⚠️ VOICE ROOM THREE-DOT MENU TEST - PARTIAL PASS (AUDIENCE ✅, HOST ❌). Test results with demo@demo.com: AUDIENCE FLOW (✅ PASSED): Joined existing room 'Uhbj' created by Ggg. Three-dot menu shows AUDIENCE panel correctly: (1) ✅ 3 icon buttons visible (Minimize with chevron-down, Switch room with swap icon, Leave with red power icon). (2) ✅ Recommended section present with 'No other rooms live right now' message. (3) ✅ Minimize button works - clicked and floating bubble appeared with testID='voice-room-bubble'. (4) ✅ Bubble behavior correct. HOST FLOW (❌ FAILED): Created new room 'Test Menu Feature' as demo@demo.com. Clicked three-dot menu button (testID='room-menu-btn' found and clicked successfully). HOST menu did NOT render: (1) ❌ testID='room-host-menu' NOT FOUND. (2) ❌ None of the 4 action sheet rows visible (Share, Minimize, Leave, Close). (3) ❌ Cancel button NOT FOUND. (4) ⚠️ Found 1 modal element and text for 'Minimize' and 'Leave' but no 'Share', 'Close', or 'Cancel' text. ROOT CAUSE: When user creates a room and becomes HOST, the three-dot menu click does not show the expected HOST action sheet (4 rows + Cancel pill). Instead, it may be showing a different menu or not rendering properly. The AUDIENCE menu works perfectly, but HOST menu is broken or not implemented correctly for room creators."
 
 
 ## Test Run — Voice Room Share-to-Moments Feature (New Endpoint Testing)
@@ -567,6 +571,85 @@ agent_communication:
       message: "✅ ALL TESTS PASSED (9/9) - VOICE ROOM SHARE-TO-MOMENTS FEATURE FULLY WORKING. Test results: (1) ✅ Room created without share_to_moments - no moment created initially. (2) ✅ Host shared room via POST /api/rooms/{room_id}/share-to-moments - returned 201 with {shared: true}, moment created with is_live=true and correct title. (3) ✅ Second share created second moment - repeatable sharing works (2 moments total for same room). (4) ✅ Non-host (diego) correctly rejected with 403 'Only the host can share this room'. (5) ✅ User B joined room and raised hand - hand_raised=true, role='listener' verified in room details. (6) ✅ Host changed User B role to 'speaker' - role updated and hand_raised reset to false. (7) ✅ Host ended room - both moments now show is_live=false (computed live from room state). (8) ✅ GET /api/moments returns room field with live state computed at read-time via _room_card. (9) ✅ All authorization, state management, and live computation working correctly. NO CRITICAL ISSUES FOUND. Feature ready for production."
 
 
+
+## Test Run — Voice Room Three-Dot Menu Feature (HOST & AUDIENCE)
+user_problem_statement: Test new Voice Room three-dot menu feature. Login with demo@demo.com / Demo1234!. Navigate to Voice tab, create room (HOST flow) or join existing room (AUDIENCE flow). Test HOST menu: tap three-dot icon → verify 4 rows (Share, Minimize, Leave, Close red text) + purple Cancel pill → test Cancel (closes, stays in room) → test Minimize (navigates back, floating bubble with red LIVE dot appears) → tap bubble (restores room) → test Leave (exits, no bubble). Test AUDIENCE menu: tap three-dot icon → verify 3 icon buttons (Minimize, Switch room, Leave red power icon) + Recommended section with room list or 'No other rooms' text → test Minimize (bubble appears) → test Leave (exits). Report if menus render correctly, bubble behavior, any console errors.
+
+frontend:
+  - task: "HOST three-dot menu - action sheet with 4 rows + Cancel button"
+    implemented: true
+    working: false
+    file: "frontend/app/room/[id].tsx (lines 906-962)"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented HOST menu as action sheet modal with testID='room-host-menu'. Contains 4 rows: Share (testID='room-menu-share-btn'), Minimize (testID='room-menu-minimize-btn'), Leave (testID='room-menu-leave-btn'), Close with red text (testID='room-menu-close-btn'), plus purple Cancel pill button below (testID='room-menu-cancel-btn')."
+        - working: false
+          agent: "testing"
+          comment: "❌ CRITICAL BUG: HOST menu does NOT render when room creator clicks three-dot menu button. Test scenario: demo@demo.com creates new room 'Test Menu Feature', becomes HOST, clicks menu button (testID='room-menu-btn' found and clicked successfully). Result: testID='room-host-menu' NOT FOUND, none of the 4 action sheet rows visible (Share, Minimize, Leave, Close), Cancel button NOT FOUND. Found 1 modal element and text for 'Minimize' and 'Leave' but no 'Share', 'Close', or 'Cancel' text. The menu button click is working, but the HOST menu modal is not rendering or showing wrong content. AUDIENCE menu works perfectly (verified in separate test), so issue is specific to HOST role detection or HOST menu rendering logic."
+  
+  - task: "AUDIENCE three-dot menu - 3 icon buttons + Recommended section"
+    implemented: true
+    working: true
+    file: "frontend/app/room/[id].tsx (lines 964-1050)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented AUDIENCE menu as bottom sheet panel with testID='room-audience-menu'. Contains 3 icon buttons at top: Minimize (chevron-down, testID='room-menu-minimize-btn'), Switch room (swap icon, testID='room-menu-switch-btn'), Leave (red power icon, testID='room-menu-leave-btn'). Below shows 'Recommended' section with list of other live rooms (testID='room-switch-{room.id}' for each) or 'No other rooms live right now' message if none exist."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: AUDIENCE menu renders correctly. Test scenario: demo@demo.com joined existing room 'Uhbj' created by Ggg (different user). Clicked three-dot menu button. Result: (1) ✅ testID='room-audience-menu' found and visible. (2) ✅ All 3 icon buttons present and correctly labeled: Minimize with chevron-down icon, Switch room with swap icon, Leave with red power icon. (3) ✅ Recommended section present with heading 'Recommended'. (4) ✅ Shows 'No other rooms live right now' message (correct behavior when no other rooms exist). All elements render as specified. No console errors."
+  
+  - task: "Minimize room functionality - floating bubble with LIVE indicator"
+    implemented: true
+    working: true
+    file: "frontend/src/components/MinimizedRoomBubble.tsx, frontend/src/context/VoiceRoomContext.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented minimize functionality: clicking Minimize button calls voiceRoom.minimizeRoom() and router.back(). MinimizedRoomBubble component (testID='voice-room-bubble') appears globally above tab bar when minimized=true. Shows host avatar, red LIVE dot indicator, and close button (testID='voice-room-bubble-close'). Tapping bubble calls restoreRoom() and navigates back to room. Positioned bottom-right with safe area insets."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Minimize functionality works correctly for AUDIENCE members. Test scenario: demo@demo.com in room 'Uhbj' as AUDIENCE, clicked Minimize button from AUDIENCE menu. Result: (1) ✅ Navigated back from room screen. (2) ✅ Floating bubble appeared with testID='voice-room-bubble' visible. (3) ✅ Bubble positioned correctly near bottom-right above tab bar. (4) ✅ Bubble contains LIVE indicator (red dot). (5) ✅ Tapping bubble restores room screen. Minimize behavior working as expected. NOTE: HOST minimize flow not tested due to HOST menu not rendering (see HOST menu bug above)."
+  
+  - task: "Leave room functionality - bubble should NOT appear"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/room/[id].tsx, frontend/src/context/VoiceRoomContext.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented leave functionality: clicking Leave button calls voiceRoom.leaveActiveRoom() which POSTs to /api/rooms/{id}/leave and clears active room state (sets activeRoomId=null, minimized=false). This should prevent bubble from appearing after leaving."
+        - working: "NA"
+          agent: "testing"
+          comment: "⚠️ NOT FULLY TESTED: Leave functionality could not be tested for HOST due to HOST menu not rendering. For AUDIENCE, the Leave button is visible in menu but was not clicked in this test run (test focused on Minimize flow). Needs retesting: (1) HOST Leave button behavior (after HOST menu bug is fixed). (2) AUDIENCE Leave button behavior. (3) Verify bubble does NOT appear after leaving (vs. appearing after minimizing)."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.9"
+  test_sequence: 8
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "HOST three-dot menu rendering bug"
+    - "Complete Leave room testing"
+  stuck_tasks:
+    - "HOST three-dot menu - action sheet with 4 rows + Cancel button"
+  test_all: false
+  test_priority: "stuck_first"
 
 ## Test Run — Blank White Page Investigation (User Report)
 user_problem_statement: User reported "The Expo web app at the preview URL is rendering a completely blank white page on EVERY route (/, /auth, etc)". Investigate root cause with browser DevTools, console logs, network requests, and DOM analysis.

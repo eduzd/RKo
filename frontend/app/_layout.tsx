@@ -52,25 +52,6 @@ if (pushSupported && Notifications && Platform.OS === "android") {
 
 function ThemedApp() {
   const { mode } = useTheme();
-  console.log("DEBUG ThemedApp rendering, mode=", mode);
-  useEffect(() => {
-    if (Platform.OS === "web" && typeof document !== "undefined") {
-      setTimeout(() => {
-        const root = document.getElementById("root");
-        const rect = root?.getBoundingClientRect();
-        console.log(
-          "DEBUG root children=",
-          root?.children.length,
-          "rectW=",
-          rect?.width,
-          "rectH=",
-          rect?.height,
-          "innerHTMLlen=",
-          root?.innerHTML.length,
-        );
-      }, 2000);
-    }
-  }, []);
   return (
     <AuthProvider>
       <NotificationsProvider>
@@ -97,8 +78,7 @@ export default function RootLayout() {
     Nunito_700Bold,
   });
 
-  const ready = true; // TEMP DEBUG
-  console.log("DEBUG fonts", { iconsLoaded, iconsError, fontsLoaded, fontsError });
+  const ready = (iconsLoaded || !!iconsError) && (fontsLoaded || !!fontsError);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
