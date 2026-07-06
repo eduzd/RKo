@@ -27,7 +27,7 @@ import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { useAuth } from "@/src/context/AuthContext";
 import { useCall } from "@/src/context/CallContext";
-import { useRoomAudio } from "@/src/hooks/use-room-audio";
+import { useVoiceRoom } from "@/src/context/VoiceRoomContext";
 import { fonts, radius, spacing } from "@/src/theme";
 import { api, Room, RoomGift, RoomMember, RoomMessage } from "@/src/utils/api";
 
@@ -52,7 +52,8 @@ export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user, setUser } = useAuth();
-  const { sendSignal, subscribe } = useCall();
+  const { subscribe } = useCall();
+  const voiceRoom = useVoiceRoom();
   const styles = makeStyles();
   const [room, setRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
@@ -77,6 +78,9 @@ export default function RoomScreen() {
   const [sendingGiftId, setSendingGiftId] = useState<string | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
+  const [recRooms, setRecRooms] = useState<Room[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
   const chatListRef = useRef<FlatList<RoomMessage>>(null);
 
   const members: RoomMember[] = room?.members || [];
@@ -85,13 +89,12 @@ export default function RoomScreen() {
   const isSpeaker = isHost || me?.role === "speaker";
   const host = room?.host || null;
 
-  useRoomAudio({
-    roomId: id!,
-    myId: user?.id || "",
-    members,
-    sendSignal,
-    subscribe,
-  });
+  // Register this room as the globally "active" one so audio keeps flowing
+  // and the minimize bubble can track it even after this screen unmounts.
+  useEffect(() => {
+    if (id) voiceRoom.enterRoom(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const load = useCallback(async () => {
     try {
@@ -161,12 +164,70 @@ export default function RoomScreen() {
     }
   }, [messages.length]);
 
+  useEffect(() => {
+    if (menuOpen && !isHost) loadRecommendedRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuOpen, isHost]);
+
   const leave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await voiceRoom.leaveActiveRoom();
+    router.back();
+  };
+
+  const minimizeRoom = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    voiceRoom.minimizeRoom();
+    router.back();
+  };
+
+  const closeRoom = () => {
+    Alert.alert(
+      "Close this room?",
+      "This will end the room for everyone currently in it.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Close Room",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            await voiceRoom.leaveActiveRoom();
+            router.back();
+          },
+        },
+      ],
+    );
+  };
+
+  const loadRecommendedRooms = useCallback(async () => {
+    setRecLoading(true);
     try {
-      await api.post(`/rooms/${id}/leave`);
+      const list = await api.get<Room[]>("/rooms");
+      setRecRooms(list.filter((r) => r.id !== id).slice(0, 10));
+    } catch {
+      // keep previous list on failure
     } finally {
-      router.back();
+      setRecLoading(false);
+    }
+  }, [id]);
+
+  const switchToRoom = async (target: Room) => {
+    if (switchingId) return;
+    setSwitchingId(target.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await voiceRoom.leaveActiveRoom();
+      await api.post(`/rooms/${target.id}/join`);
+      setMenuOpen(false);
+      router.replace(`/room/${target.id}`);
+    } catch (e) {
+      Alert.alert(
+        "Switch room",
+        e instanceof Error ? e.message : "Could not switch rooms right now.",
+      );
+    } finally {
+      setSwitchingId(null);
     }
   };
 
@@ -842,52 +903,155 @@ export default function RoomScreen() {
           onRequestClose={() => setMenuOpen(false)}
         >
           <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)}>
-            <View style={styles.menuSheet}>
-              {isHost && (
+            {isHost ? (
+              <View testID="room-host-menu">
+                <View style={styles.actionSheet}>
+                  <Pressable
+                    style={styles.actionSheetRow}
+                    testID="room-menu-share-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      shareInvite();
+                    }}
+                  >
+                    <Text style={styles.actionSheetText}>Share</Text>
+                  </Pressable>
+                  <View style={styles.actionSheetDivider} />
+                  <Pressable
+                    style={styles.actionSheetRow}
+                    testID="room-menu-minimize-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      minimizeRoom();
+                    }}
+                  >
+                    <Text style={styles.actionSheetText}>Minimize the room</Text>
+                  </Pressable>
+                  <View style={styles.actionSheetDivider} />
+                  <Pressable
+                    style={styles.actionSheetRow}
+                    testID="room-menu-leave-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      leave();
+                    }}
+                  >
+                    <Text style={styles.actionSheetText}>Leave</Text>
+                  </Pressable>
+                  <View style={styles.actionSheetDivider} />
+                  <Pressable
+                    style={styles.actionSheetRow}
+                    testID="room-menu-close-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      closeRoom();
+                    }}
+                  >
+                    <Text style={[styles.actionSheetText, styles.actionSheetDanger]}>
+                      Close
+                    </Text>
+                  </Pressable>
+                </View>
                 <Pressable
-                  style={styles.menuRow}
-                  testID="room-menu-mute-btn"
-                  onPress={() => {
-                    toggleChatMute();
-                    setMenuOpen(false);
-                  }}
+                  style={styles.cancelPill}
+                  testID="room-menu-cancel-btn"
+                  onPress={() => setMenuOpen(false)}
                 >
-                  <Ionicons
-                    name={room.chat_muted ? "chatbox-ellipses-outline" : "chatbox-outline"}
-                    size={18}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.menuText}>
-                    {room.chat_muted ? "Unmute room chat" : "Mute room chat"}
-                  </Text>
+                  <Text style={styles.cancelPillText}>Cancel</Text>
                 </Pressable>
-              )}
-              <Pressable
-                style={styles.menuRow}
-                onPress={() => {
-                  setMenuOpen(false);
-                  shareInvite();
-                }}
-              >
-                <Ionicons name="share-social-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.menuText}>Invite friends</Text>
+              </View>
+            ) : (
+              <Pressable style={styles.switcherSheet} onPress={() => {}} testID="room-audience-menu">
+                <View style={styles.switcherIconsRow}>
+                  <Pressable
+                    style={styles.switcherIconBtn}
+                    testID="room-menu-minimize-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      minimizeRoom();
+                    }}
+                  >
+                    <View style={styles.switcherIconCircle}>
+                      <Ionicons name="chevron-down-outline" size={20} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.switcherIconLabel}>Minimize</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.switcherIconBtn}
+                    testID="room-menu-switch-btn"
+                    onPress={loadRecommendedRooms}
+                  >
+                    <View style={styles.switcherIconCircle}>
+                      <Ionicons name="swap-horizontal-outline" size={20} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.switcherIconLabel}>Switch room</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.switcherIconBtn}
+                    testID="room-menu-leave-btn"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      leave();
+                    }}
+                  >
+                    <View style={[styles.switcherIconCircle, styles.switcherIconCircleDanger]}>
+                      <Ionicons name="power-outline" size={20} color="#F87171" />
+                    </View>
+                    <Text style={[styles.switcherIconLabel, { color: "#F87171" }]}>
+                      Leave
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Text style={styles.menuTitle}>Recommended</Text>
+                {recLoading ? (
+                  <ActivityIndicator color="#FFFFFF" style={{ marginVertical: spacing.lg }} />
+                ) : recRooms.length === 0 ? (
+                  <Text style={styles.chatEmpty}>No other rooms live right now.</Text>
+                ) : (
+                  <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                    {recRooms.map((r) => (
+                      <Pressable
+                        key={r.id}
+                        testID={`room-switch-${r.id}`}
+                        style={styles.recRow}
+                        onPress={() => switchToRoom(r)}
+                        disabled={!!switchingId}
+                      >
+                        <Avatar
+                          name={r.host?.name}
+                          url={r.host?.avatar_url}
+                          size={42}
+                          flagCode={countryToCode(r.host?.country)}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.recTitle} numberOfLines={1}>
+                            {r.title}
+                          </Text>
+                          <View style={styles.recSubRow}>
+                            <FlagIcon code={r.language} size={11} />
+                            <Text style={styles.recSubText}>
+                              {(r.language || "").toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+                        {switchingId === r.id ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <View style={styles.recMemberPill}>
+                            <Ionicons name="people" size={11} color="#FFFFFF" />
+                            <Text style={styles.recMemberText}>{r.member_count}</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
               </Pressable>
-              <Pressable
-                style={[styles.menuRow, styles.menuRowDanger]}
-                testID="room-leave-btn"
-                onPress={() => {
-                  setMenuOpen(false);
-                  leave();
-                }}
-              >
-                <Ionicons name="exit-outline" size={18} color="#F87171" />
-                <Text style={[styles.menuText, { color: "#F87171" }]}>
-                  {isHost ? "End room" : "Leave room"}
-                </Text>
-              </Pressable>
-            </View>
+            )}
           </Pressable>
         </Modal>
+
 
         <Modal
           visible={toolsOpen}
@@ -1645,6 +1809,112 @@ const makeStyles = () =>
     menuText: {
       fontFamily: fonts.textSemi,
       fontSize: 14,
+      color: "#FFFFFF",
+    },
+    actionSheet: {
+      backgroundColor: "#1F1B3A",
+      borderRadius: radius.lg,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+      overflow: "hidden",
+    },
+    actionSheetRow: {
+      paddingVertical: spacing.lg,
+      alignItems: "center",
+    },
+    actionSheetDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: "rgba(255,255,255,0.15)",
+    },
+    actionSheetText: {
+      fontFamily: fonts.textSemi,
+      fontSize: 15.5,
+      color: "#FFFFFF",
+    },
+    actionSheetDanger: {
+      color: "#F87171",
+    },
+    cancelPill: {
+      backgroundColor: "#6D5AE8",
+      borderRadius: radius.pill,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.xl,
+      paddingVertical: spacing.lg,
+      alignItems: "center",
+    },
+    cancelPillText: {
+      fontFamily: fonts.textBold,
+      fontSize: 15.5,
+      color: "#FFFFFF",
+    },
+    switcherSheet: {
+      backgroundColor: "#2A2154",
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      padding: spacing.lg,
+      paddingBottom: spacing.xl,
+    },
+    switcherIconsRow: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      marginBottom: spacing.lg,
+    },
+    switcherIconBtn: {
+      alignItems: "center",
+      gap: 6,
+      width: 88,
+    },
+    switcherIconCircle: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    switcherIconCircleDanger: {
+      backgroundColor: "rgba(248,113,113,0.16)",
+    },
+    switcherIconLabel: {
+      fontFamily: fonts.textSemi,
+      fontSize: 11.5,
+      color: "#FFFFFF",
+      textAlign: "center",
+    },
+    recRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm + 2,
+      paddingVertical: spacing.sm + 2,
+    },
+    recTitle: {
+      fontFamily: fonts.textSemi,
+      fontSize: 14,
+      color: "#FFFFFF",
+    },
+    recSubRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginTop: 2,
+    },
+    recSubText: {
+      fontFamily: fonts.textBold,
+      fontSize: 10.5,
+      color: "rgba(255,255,255,0.6)",
+    },
+    recMemberPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
+    recMemberText: {
+      fontFamily: fonts.textBold,
+      fontSize: 11,
       color: "#FFFFFF",
     },
     giftSheet: {
